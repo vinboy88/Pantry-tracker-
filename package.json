@@ -6,6 +6,7 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc -b && vite build",
+    "build:pages": "tsc -b && GITHUB_PAGES=true vite build",
     "lint": "oxlint",
     "preview": "vite preview",
     "icons": "python3 scripts/generate-icons.py"

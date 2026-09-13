@@ -1,17 +1,19 @@
 /* Pantry service worker — network-first with cache fallback.
-   After the first successful load, the app shell and assets work offline. */
-const CACHE_NAME = 'pantry-v1'
+   Paths are relative to this script so the same file works at "/" and
+   at the GitHub Pages project base "/Pantry-tracker-/". */
+const CACHE_NAME = 'pantry-v2'
+const SCOPE = new URL('./', self.location)
 
 const PRECACHE = [
-  '/',
-  '/index.html',
-  '/manifest.webmanifest',
-  '/favicon.svg',
-  '/icons/icon-192.png',
-  '/icons/icon-512.png',
-  '/icons/icon-maskable-512.png',
-  '/icons/apple-touch-icon.png',
-]
+  './',
+  './index.html',
+  './manifest.webmanifest',
+  './favicon.svg',
+  './icons/icon-192.png',
+  './icons/icon-512.png',
+  './icons/icon-maskable-512.png',
+  './icons/apple-touch-icon.png',
+].map((path) => new URL(path, self.location).href)
 
 self.addEventListener('install', (event) => {
   event.waitUntil(
@@ -38,7 +40,7 @@ self.addEventListener('fetch', (event) => {
   if (request.method !== 'GET') return
 
   const url = new URL(request.url)
-  if (url.origin !== self.location.origin) return
+  if (!url.href.startsWith(SCOPE.href)) return
 
   event.respondWith(respond(request))
 })
@@ -58,8 +60,8 @@ async function respond(request) {
 
     if (request.mode === 'navigate') {
       return (
-        (await cache.match('/index.html')) ||
-        (await cache.match('/')) ||
+        (await cache.match(new URL('./index.html', self.location))) ||
+        (await cache.match(new URL('./', self.location))) ||
         new Response('Pantry is offline and this page is not cached yet.', {
           status: 503,
           headers: { 'Content-Type': 'text/plain' },
