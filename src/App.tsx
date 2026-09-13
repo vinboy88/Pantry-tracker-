@@ -76,12 +76,20 @@ export default function App() {
     setShowWelcome(false)
   }
 
+  const resetFilters = () => {
+    setQuery('')
+    setCategory('all')
+    setStock('all')
+    setSort('updated')
+  }
+
   const saveDraft = async (draft: ItemDraft) => {
     if (editorId && editorId !== 'new') {
       await pantry.updateItem(editorId, draft)
       return
     }
     await pantry.addItem(draft)
+    resetFilters()
   }
 
   const filteredEmpty = pantry.items.length > 0 && visible.length === 0
@@ -127,6 +135,7 @@ export default function App() {
             filtered={filteredEmpty}
             onAdd={() => setEditorId('new')}
             onSample={() => void pantry.loadSamples()}
+            onClearFilters={resetFilters}
           />
         ) : (
           <ul className="item-list">

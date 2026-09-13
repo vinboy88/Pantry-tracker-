@@ -19,7 +19,6 @@ const SORTS: { id: SortMode; label: string }[] = [
 ]
 
 const STOCKS: { id: StockFilter; label: string }[] = [
-  { id: 'all', label: 'All' },
   { id: 'expiring', label: 'Expiring' },
   { id: 'empty', label: 'Out' },
 ]
@@ -71,25 +70,18 @@ export function Toolbar({
             key={option.id}
             type="button"
             className={`chip ${stock === option.id ? 'is-on' : ''}`}
-            onClick={() => onStock(option.id)}
+            onClick={() => onStock(stock === option.id ? 'all' : option.id)}
           >
             {option.label}
           </button>
         ))}
         <span className="chip-rule" aria-hidden="true" />
-        <button
-          type="button"
-          className={`chip ${category === 'all' ? 'is-on' : ''}`}
-          onClick={() => onCategory('all')}
-        >
-          Any category
-        </button>
         {categories.map((name) => (
           <button
             key={name}
             type="button"
             className={`chip ${category === name ? 'is-on' : ''}`}
-            onClick={() => onCategory(name)}
+            onClick={() => onCategory(category === name ? 'all' : name)}
           >
             {name}
           </button>

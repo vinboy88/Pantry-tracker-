@@ -1,3 +1,5 @@
+import { JarMark } from './JarMark.tsx'
+
 interface WelcomeProps {
   onDismiss: () => void
   standalone: boolean
@@ -9,7 +11,9 @@ export function Welcome({ onDismiss, standalone }: WelcomeProps) {
       <button type="button" className="sheet-backdrop" aria-label="Close welcome" onClick={onDismiss} />
       <section className="sheet welcome-sheet">
         <div className="welcome-hero" aria-hidden="true">
-          <span className="welcome-jar" />
+          <span className="welcome-mark">
+            <JarMark size={72} />
+          </span>
         </div>
         <h2 id="welcome-title">Your shelves, minus the guesswork</h2>
         <ul className="welcome-list">
