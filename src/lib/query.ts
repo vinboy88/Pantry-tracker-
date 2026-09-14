@@ -1,3 +1,4 @@
+import { barcodeSearchHaystack } from './barcode.ts'
 import { isExpiringConcern } from './dates.ts'
 import { isLowStock } from './stock.ts'
 import type { PantryItem, SortMode, StockFilter } from '../types.ts'
@@ -24,7 +25,13 @@ export function filterAndSort(
   const needle = query.trim().toLowerCase()
 
   const filtered = items.filter((item) => {
-    if (needle && !item.name.toLowerCase().includes(needle)) return false
+    if (
+      needle &&
+      !item.name.toLowerCase().includes(needle) &&
+      !barcodeSearchHaystack(item.barcode).includes(needle.replace(/[\s-]/g, ''))
+    ) {
+      return false
+    }
     if (category !== 'all' && item.category !== category) return false
     if (stock === 'empty' && item.quantity > 0) return false
     if (stock === 'expiring' && !isExpiringConcern(item)) return false

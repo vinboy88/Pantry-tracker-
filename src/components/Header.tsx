@@ -4,6 +4,7 @@ interface HeaderProps {
   themeMode: ThemeMode
   onCycleTheme: () => void
   onOpenSettings: () => void
+  onScan: () => void
   total: number
   expiring: number
   empty: number
@@ -20,6 +21,7 @@ export function Header({
   themeMode,
   onCycleTheme,
   onOpenSettings,
+  onScan,
   total,
   expiring,
   empty,
@@ -53,6 +55,14 @@ export function Header({
         </div>
       </div>
       <div className="topbar-actions">
+        <button type="button" className="ghost-btn icon-btn" onClick={onScan} aria-label="Scan barcode">
+          <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true">
+            <path
+              fill="currentColor"
+              d="M2 6h2v12H2V6zm4 0h1v12H6V6zm3 0h2v12H9V6zm4 0h1v12h-1V6zm3 0h3v12h-3V6zm5 0h1v12h-1V6z"
+            />
+          </svg>
+        </button>
         <button
           type="button"
           className="ghost-btn icon-btn"

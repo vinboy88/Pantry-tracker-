@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
+import { BarcodeScanner } from './components/BarcodeScanner.tsx'
 import { EmptyState } from './components/EmptyState.tsx'
 import { Header } from './components/Header.tsx'
 import { InstallHint } from './components/InstallHint.tsx'
@@ -11,8 +12,10 @@ import { Toast } from './components/Toast.tsx'
 import { Toolbar } from './components/Toolbar.tsx'
 import { Welcome } from './components/Welcome.tsx'
 import { CATEGORIES, DEFAULT_UNIT, INSTALL_HINT_KEY, WELCOME_KEY } from './constants.ts'
-import { usePantry } from './hooks/usePantry.ts'
+import { emptyDraft, usePantry } from './hooks/usePantry.ts'
 import { maybeLocalNotify, syncAppBadge } from './lib/alerts.ts'
+import { findBarcodeMatch, normalizeBarcode } from './lib/barcode.ts'
+import { lookupProduct } from './lib/productLookup.ts'
 import { filterAndSort, formatQuantity, uniqueCategories } from './lib/query.ts'
 import {
   dismissBanner,
@@ -50,6 +53,10 @@ export default function App() {
   const [sort, setSort] = useState<SortMode>('updated')
   const [themeMode, setThemeMode] = useState<ThemeMode>(() => readThemeMode())
   const [editorId, setEditorId] = useState<string | 'new' | null>(null)
+  const [editorSeed, setEditorSeed] = useState<ItemDraft | null>(null)
+  const [lookupStatus, setLookupStatus] = useState<'idle' | 'loading' | 'found' | 'miss'>('idle')
+  const [incomingBarcode, setIncomingBarcode] = useState<string | null>(null)
+  const [scannerMode, setScannerMode] = useState<'lookup' | 'attach' | null>(null)
   const [showSettings, setShowSettings] = useState(false)
   const [showWelcome, setShowWelcome] = useState(() => !readFlag(WELCOME_KEY))
   const [showInstallHint, setShowInstallHint] = useState(
@@ -161,6 +168,7 @@ export default function App() {
       expiryDate: '',
       notes: '',
       lowStockThreshold: null,
+      barcode: '',
     })
     refreshLocals()
     if (result.bumped) {
@@ -192,6 +200,71 @@ export default function App() {
     }
   }
 
+  const closeEditor = () => {
+    setEditorId(null)
+    setEditorSeed(null)
+    setLookupStatus('idle')
+    setIncomingBarcode(null)
+  }
+
+  const openNew = (seed?: ItemDraft) => {
+    setEditorSeed(seed ?? null)
+    setLookupStatus('idle')
+    setIncomingBarcode(null)
+    setEditorId('new')
+  }
+
+  const openExisting = (id: string) => {
+    setEditorSeed(null)
+    setLookupStatus('idle')
+    setIncomingBarcode(null)
+    setEditorId(id)
+  }
+
+  const onScannedBarcode = async (raw: string) => {
+    const code = normalizeBarcode(raw)
+    const mode = scannerMode
+    setScannerMode(null)
+    if (!code) return
+
+    if (mode === 'attach') {
+      setIncomingBarcode(code)
+      return
+    }
+
+    const match = findBarcodeMatch(pantry.items, code)
+    if (match) {
+      const after = await pantry.adjustQuantity(match.id, 1)
+      const nextQty = after?.quantity ?? match.quantity + 1
+      if (match && after && !isLowStock(match) && isLowStock(after)) {
+        setToast(`${after.name} is running low`)
+      } else {
+        setToast(
+          `Added 1 to ${match.name} · now ${formatQuantity(nextQty)} ${match.unit}`,
+        )
+      }
+      return
+    }
+
+    const seed: ItemDraft = {
+      ...emptyDraft(lastAdd),
+      barcode: code,
+    }
+    openNew(seed)
+    setLookupStatus('loading')
+    const found = await lookupProduct(code)
+    setEditorSeed((current) => {
+      if (!current || current.barcode !== code) return current
+      if (current.name.trim()) return current
+      return {
+        ...current,
+        name: found?.name ?? current.name,
+        category: current.category || found?.category || '',
+      }
+    })
+    setLookupStatus(found?.name ? 'found' : 'miss')
+  }
+
   const filteredEmpty = pantry.items.length > 0 && visible.length === 0
   const showQuickAdd = pantry.ready && !pantry.error && (pantry.items.length > 0 || recents.length > 0)
   const showLowBanner =
@@ -207,6 +280,7 @@ export default function App() {
         themeMode={themeMode}
         onCycleTheme={cycleTheme}
         onOpenSettings={() => setShowSettings(true)}
+        onScan={() => setScannerMode('lookup')}
         total={pantry.stats.total}
         expiring={pantry.stats.expiring}
         empty={pantry.stats.empty}
@@ -253,7 +327,13 @@ export default function App() {
       ) : null}
 
       {showQuickAdd ? (
-        <QuickAdd recents={recents} busy={!pantry.ready} onAdd={quickAddName} onRecent={addRecent} />
+        <QuickAdd
+          recents={recents}
+          busy={!pantry.ready}
+          onAdd={quickAddName}
+          onRecent={addRecent}
+          onScan={() => setScannerMode('lookup')}
+        />
       ) : null}
 
       <main className="feed">
@@ -264,7 +344,8 @@ export default function App() {
         ) : visible.length === 0 ? (
           <EmptyState
             filtered={filteredEmpty}
-            onAdd={() => setEditorId('new')}
+            onAdd={() => openNew()}
+            onScan={() => setScannerMode('lookup')}
             onSample={() => void pantry.loadSamples()}
             onClearFilters={resetFilters}
           />
@@ -274,7 +355,7 @@ export default function App() {
               <li key={item.id}>
                 <ItemCard
                   item={item}
-                  onOpen={() => setEditorId(item.id)}
+                  onOpen={() => openExisting(item.id)}
                   onAdjust={(delta) => void onAdjust(item.id, delta)}
                   onEmpty={() => void pantry.markEmpty(item.id)}
                 />
@@ -289,7 +370,7 @@ export default function App() {
           type="button"
           className="fab"
           aria-label="Add pantry item"
-          onClick={() => setEditorId('new')}
+          onClick={() => openNew()}
         >
           +
         </button>
@@ -305,7 +386,11 @@ export default function App() {
           extraCategories={categories}
           lastUnit={lastAdd?.unit}
           lastCategory={lastAdd?.category}
-          onClose={() => setEditorId(null)}
+          initialDraft={editorSeed ?? undefined}
+          incomingBarcode={incomingBarcode}
+          lookupStatus={lookupStatus}
+          onScanBarcode={() => setScannerMode('attach')}
+          onClose={closeEditor}
           onSave={saveDraft}
           onDelete={
             editingItem
@@ -314,6 +399,13 @@ export default function App() {
                 }
               : undefined
           }
+        />
+      ) : null}
+
+      {scannerMode ? (
+        <BarcodeScanner
+          onClose={() => setScannerMode(null)}
+          onDetect={(code) => void onScannedBarcode(code)}
         />
       ) : null}
 

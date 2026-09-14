@@ -517,6 +517,10 @@ textarea:focus-visible {
   margin-top: 20px;
 }
 
+.empty-actions .ghost-btn {
+  width: 100%;
+}
+
 .fab {
   position: fixed;
   right: max(18px, calc((100vw - 560px) / 2 + 18px));
@@ -638,6 +642,95 @@ textarea:focus-visible {
   margin-top: 8px;
 }
 
+.barcode-row {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 8px;
+  align-items: center;
+}
+
+.scanner-root {
+  z-index: 40;
+}
+
+.scanner-body {
+  display: grid;
+  gap: 14px;
+  padding-top: 8px;
+}
+
+.scanner-copy {
+  display: grid;
+  gap: 10px;
+}
+
+.scanner-copy p {
+  margin: 0;
+  color: var(--ink-soft);
+  font-size: 0.94rem;
+  line-height: 1.45;
+}
+
+.scanner-stage {
+  position: relative;
+  aspect-ratio: 3 / 4;
+  max-height: min(58vh, 520px);
+  border-radius: var(--radius);
+  overflow: hidden;
+  background: #111;
+}
+
+.scanner-video {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.scanner-reticle {
+  position: absolute;
+  inset: 32% 8%;
+  border: 2px solid color-mix(in srgb, var(--sage) 80%, white);
+  border-radius: 12px;
+  box-shadow: 0 0 0 999px rgba(12, 10, 8, 0.38);
+  pointer-events: none;
+}
+
+.scanner-caption {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 12px;
+  margin: 0;
+  text-align: center;
+  color: #fff;
+  font-size: 0.86rem;
+  font-weight: 650;
+  text-shadow: 0 1px 6px rgba(0, 0, 0, 0.55);
+}
+
+.scanner-manual {
+  display: grid;
+  gap: 10px;
+}
+
+.scanner-manual label {
+  display: grid;
+  gap: 6px;
+  font-size: 0.86rem;
+  font-weight: 650;
+  color: var(--ink-soft);
+}
+
+.scanner-manual input {
+  width: 100%;
+  min-height: 48px;
+  border: 1px solid var(--line);
+  background: var(--surface);
+  border-radius: 16px;
+  padding: 12px 14px;
+  font-size: 16px;
+}
+
 .form-error {
   margin: 0;
   color: var(--rose);
@@ -666,7 +759,7 @@ textarea:focus-visible {
 
 .quick-add-row {
   display: grid;
-  grid-template-columns: 1fr auto;
+  grid-template-columns: 1fr auto auto;
   gap: 8px;
   align-items: center;
 }
