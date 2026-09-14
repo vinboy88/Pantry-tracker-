@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="Pantry">
+  <rect width="64" height="64" rx="14" fill="#2f6b4f"/>
+  <rect x="22" y="12" width="20" height="8" rx="2.5" fill="#f6f1e7"/>
+  <rect x="26" y="19" width="12" height="5" fill="#f6f1e7"/>
+  <rect x="16" y="23" width="32" height="31" rx="8" fill="#f6f1e7"/>
+  <rect x="21" y="32" width="22" height="12" rx="3" fill="#2f6b4f"/>
+  <path d="M32 34.5c2.4 0 4 1.8 4 4.1 0 2.6-2.6 4.6-4 5.4-1.4-.8-4-2.8-4-5.4 0-2.3 1.6-4.1 4-4.1z" fill="#f6f1e7"/>
+</svg>

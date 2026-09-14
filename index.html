@@ -1,0 +1,47 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1, viewport-fit=cover"
+    />
+    <title>Pantry</title>
+    <meta
+      name="description"
+      content="Personal pantry tracker. Add items, watch expiry dates, and keep stock on your iPhone — even offline."
+    />
+    <meta name="theme-color" content="#f3efe6" media="(prefers-color-scheme: light)" />
+    <meta name="theme-color" content="#16130f" media="(prefers-color-scheme: dark)" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-title" content="Pantry" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="format-detection" content="telephone=no" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
+    <link rel="manifest" href="/manifest.webmanifest" />
+    <script>
+      try {
+        const stored = localStorage.getItem('pantry.theme')
+        const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches
+        const theme = stored === 'light' || stored === 'dark'
+          ? stored
+          : prefersDark
+            ? 'dark'
+            : 'light'
+        document.documentElement.dataset.theme = theme
+        const color = theme === 'dark' ? '#16130f' : '#f3efe6'
+        document.querySelectorAll('meta[name="theme-color"]').forEach((el) => {
+          el.setAttribute('content', color)
+        })
+      } catch {
+        /* private mode / blocked storage */
+      }
+    </script>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>
