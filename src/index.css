@@ -177,6 +177,26 @@ textarea:focus-visible {
   color: var(--ink);
 }
 
+.ghost-btn.is-on {
+  background: var(--sage-soft);
+  border-color: transparent;
+  color: var(--sage-strong);
+}
+
+.topbar-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: 0 0 auto;
+}
+
+.icon-btn {
+  width: 44px;
+  padding: 0;
+  display: grid;
+  place-items: center;
+}
+
 .primary-btn {
   width: 100%;
   background: var(--sage);
@@ -278,6 +298,11 @@ textarea:focus-visible {
   color: var(--sage-strong);
 }
 
+.chip-alert {
+  border-color: color-mix(in srgb, var(--terracotta) 45%, var(--line));
+  color: var(--terracotta);
+}
+
 .chip-rule {
   width: 1px;
   align-self: stretch;
@@ -356,6 +381,10 @@ textarea:focus-visible {
   box-shadow: inset 4px 0 0 var(--empty);
 }
 
+.card.tone-low {
+  box-shadow: inset 4px 0 0 var(--terracotta);
+}
+
 .card-main {
   width: 100%;
   text-align: left;
@@ -411,6 +440,11 @@ textarea:focus-visible {
 .pill-empty {
   background: var(--empty-soft);
   color: var(--empty);
+}
+
+.pill-low {
+  background: color-mix(in srgb, var(--terracotta) 16%, var(--surface));
+  color: var(--terracotta);
 }
 
 .card-actions {
@@ -608,6 +642,172 @@ textarea:focus-visible {
   margin: 0;
   color: var(--rose);
   font-weight: 650;
+}
+
+.form-ok {
+  margin: 0;
+  color: var(--sage-strong);
+  font-weight: 650;
+}
+
+.form-hint {
+  margin: -6px 0 0;
+  color: var(--ink-soft);
+  font-size: 0.82rem;
+  font-weight: 500;
+  line-height: 1.4;
+}
+
+.quick-add {
+  padding: 0 18px 10px;
+  display: grid;
+  gap: 8px;
+}
+
+.quick-add-row {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 8px;
+  align-items: center;
+}
+
+.quick-add-field input {
+  width: 100%;
+  min-height: 48px;
+  border: 1px solid var(--line);
+  background: var(--surface);
+  border-radius: 16px;
+  padding: 12px 14px;
+  font-size: 16px;
+}
+
+.quick-add-btn {
+  min-height: 48px;
+  padding: 0 18px;
+  border-radius: 16px;
+  background: var(--sage);
+  color: var(--on-sage);
+  font-weight: 700;
+}
+
+.quick-add-btn:disabled {
+  opacity: 0.45;
+}
+
+.quick-add-hint {
+  margin: 0;
+  color: var(--ink-soft);
+  font-size: 0.8rem;
+}
+
+.alert-banner {
+  margin: 4px 18px 12px;
+  padding: 14px 16px;
+  border-radius: var(--radius-sm);
+  background: color-mix(in srgb, var(--terracotta) 14%, var(--surface));
+  border: 1px solid color-mix(in srgb, var(--terracotta) 28%, var(--line));
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.alert-banner strong {
+  color: var(--ink);
+}
+
+.alert-banner p {
+  margin: 4px 0 0;
+  color: var(--ink-soft);
+  font-size: 0.9rem;
+}
+
+.alert-banner-actions {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 6px;
+}
+
+.toast {
+  position: fixed;
+  left: 50%;
+  bottom: calc(var(--safe-bottom) + 88px);
+  transform: translateX(-50%);
+  z-index: 20;
+  width: min(480px, calc(100% - 36px));
+  margin: 0;
+  padding: 12px 16px;
+  border-radius: 16px;
+  background: var(--ink);
+  color: var(--surface);
+  font-weight: 650;
+  font-size: 0.92rem;
+  box-shadow: var(--shadow);
+  text-align: center;
+}
+
+.settings-body {
+  display: grid;
+  gap: 16px;
+  padding-top: 8px;
+  padding-bottom: 24px;
+}
+
+.settings-block {
+  padding: 16px;
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  border: 1px solid var(--line);
+  display: grid;
+  gap: 10px;
+}
+
+.settings-block h3 {
+  margin: 0;
+  font-size: 1.02rem;
+  letter-spacing: -0.02em;
+}
+
+.settings-block p {
+  margin: 0;
+  color: var(--ink-soft);
+  font-size: 0.9rem;
+  line-height: 1.45;
+}
+
+.settings-actions {
+  display: grid;
+  gap: 8px;
+}
+
+.settings-wide,
+.settings-actions .ghost-btn,
+.settings-actions .primary-btn {
+  width: 100%;
+}
+
+.warning-block {
+  background: var(--amber-soft);
+  border-color: transparent;
+}
+
+.import-preview {
+  display: grid;
+  gap: 8px;
+  padding-top: 4px;
+}
+
+@media (max-width: 420px) {
+  .alert-banner {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .alert-banner-actions {
+    flex-direction: row;
+    justify-content: flex-end;
+  }
 }
 
 @media (min-width: 720px) {

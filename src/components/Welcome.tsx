@@ -18,8 +18,8 @@ export function Welcome({ onDismiss, standalone }: WelcomeProps) {
         <h2 id="welcome-title">Your shelves, minus the guesswork</h2>
         <ul className="welcome-list">
           <li>Add what you have — quantity, category, expiry, notes.</li>
-          <li>Tap +/− to count down a carton or mark something empty.</li>
-          <li>Expired and almost-expired items light up so you use them first.</li>
+          <li>Quick-add a name, or tap a recent item to bump the count.</li>
+          <li>Low stock and expiry light up. Backup lives under Settings.</li>
           <li>Everything stays on this phone. Works offline after the first load.</li>
         </ul>
         {!standalone ? (

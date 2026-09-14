@@ -1,24 +1,23 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { DEFAULT_UNIT } from '../constants.ts'
 import { isExpiringConcern } from '../lib/dates.ts'
-import { clampQuantity } from '../lib/query.ts'
+import { rememberRecent, writeLastAdd } from '../lib/prefs.ts'
+import { clampQuantity, findNameMatch } from '../lib/query.ts'
 import { sampleItems } from '../lib/sampleData.ts'
+import { isLowStock } from '../lib/stock.ts'
 import { deleteItem, loadItems, replaceAll, saveItem } from '../lib/storage.ts'
-import type { ItemDraft, PantryItem } from '../types.ts'
+import { newId, normalizeItem } from '../lib/backup.ts'
+import type { ItemDraft, LastAddPrefs, PantryItem } from '../types.ts'
 
-function newId(): string {
-  if (crypto.randomUUID) return crypto.randomUUID()
-  return `item-${Date.now()}-${Math.random().toString(16).slice(2)}`
-}
-
-export function emptyDraft(): ItemDraft {
+export function emptyDraft(prefs?: LastAddPrefs | null): ItemDraft {
   return {
     name: '',
     quantity: 1,
-    unit: DEFAULT_UNIT,
-    category: '',
+    unit: prefs?.unit || DEFAULT_UNIT,
+    category: prefs?.category || '',
     expiryDate: '',
     notes: '',
+    lowStockThreshold: null,
   }
 }
 
@@ -30,22 +29,49 @@ export function draftFromItem(item: PantryItem): ItemDraft {
     category: item.category,
     expiryDate: item.expiryDate ?? '',
     notes: item.notes,
+    lowStockThreshold: item.lowStockThreshold,
   }
+}
+
+function itemFromDraft(draft: ItemDraft, existing?: PantryItem): PantryItem {
+  const now = Date.now()
+  return {
+    id: existing?.id ?? newId(),
+    name: draft.name.trim(),
+    quantity: clampQuantity(draft.quantity),
+    unit: draft.unit || DEFAULT_UNIT,
+    category: draft.category.trim(),
+    expiryDate: draft.expiryDate || null,
+    notes: draft.notes.trim(),
+    lowStockThreshold: draft.lowStockThreshold,
+    createdAt: existing?.createdAt ?? now,
+    updatedAt: now,
+  }
+}
+
+function rememberAdd(item: PantryItem): void {
+  writeLastAdd({ unit: item.unit, category: item.category })
+  rememberRecent({ name: item.name, unit: item.unit, category: item.category })
 }
 
 export function usePantry() {
   const [items, setItems] = useState<PantryItem[]>([])
   const [ready, setReady] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const itemsRef = useRef<PantryItem[]>([])
+
+  useEffect(() => {
+    itemsRef.current = items
+  }, [items])
 
   useEffect(() => {
     let cancelled = false
     loadItems()
       .then((loaded) => {
-        if (!cancelled) {
-          setItems(loaded)
-          setReady(true)
-        }
+        if (cancelled) return
+        const normalized = loaded.map((row) => normalizeItem(row) ?? row)
+        setItems(normalized)
+        setReady(true)
       })
       .catch(() => {
         if (!cancelled) {
@@ -61,48 +87,44 @@ export function usePantry() {
   const upsert = useCallback(async (item: PantryItem) => {
     setItems((current) => {
       const exists = current.some((entry) => entry.id === item.id)
-      return exists ? current.map((entry) => (entry.id === item.id ? item : entry)) : [item, ...current]
+      return exists
+        ? current.map((entry) => (entry.id === item.id ? item : entry))
+        : [item, ...current]
     })
     await saveItem(item)
   }, [])
 
   const addItem = useCallback(
     async (draft: ItemDraft) => {
-      const now = Date.now()
-      const item: PantryItem = {
-        id: newId(),
-        name: draft.name.trim(),
-        quantity: clampQuantity(draft.quantity),
-        unit: draft.unit || DEFAULT_UNIT,
-        category: draft.category.trim(),
-        expiryDate: draft.expiryDate || null,
-        notes: draft.notes.trim(),
-        createdAt: now,
-        updatedAt: now,
+      const match = findNameMatch(itemsRef.current, draft.name)
+      if (match) {
+        const addBy = clampQuantity(draft.quantity) || 1
+        const item: PantryItem = {
+          ...match,
+          quantity: clampQuantity(match.quantity + addBy),
+          updatedAt: Date.now(),
+        }
+        await upsert(item)
+        rememberAdd(item)
+        return { item, bumped: true as const, addedBy: addBy }
       }
+
+      const item = itemFromDraft(draft)
       await upsert(item)
-      return item
+      rememberAdd(item)
+      return { item, bumped: false as const, addedBy: item.quantity }
     },
     [upsert],
   )
 
   const updateItem = useCallback(
     async (id: string, draft: ItemDraft) => {
-      const existing = items.find((item) => item.id === id)
+      const existing = itemsRef.current.find((item) => item.id === id)
       if (!existing) return
-      const item: PantryItem = {
-        ...existing,
-        name: draft.name.trim(),
-        quantity: clampQuantity(draft.quantity),
-        unit: draft.unit || DEFAULT_UNIT,
-        category: draft.category.trim(),
-        expiryDate: draft.expiryDate || null,
-        notes: draft.notes.trim(),
-        updatedAt: Date.now(),
-      }
+      const item = itemFromDraft(draft, existing)
       await upsert(item)
     },
-    [items, upsert],
+    [upsert],
   )
 
   const removeItem = useCallback(async (id: string) => {
@@ -112,21 +134,19 @@ export function usePantry() {
 
   const patchItem = useCallback(
     async (id: string, mutate: (item: PantryItem) => PantryItem) => {
-      let next: PantryItem | null = null
-      setItems((current) => {
-        const existing = current.find((item) => item.id === id)
-        if (!existing) return current
-        next = mutate(existing)
-        return current.map((item) => (item.id === id ? next! : item))
-      })
-      if (next) await saveItem(next)
+      const existing = itemsRef.current.find((item) => item.id === id)
+      if (!existing) return null
+      const next = mutate(existing)
+      setItems((current) => current.map((item) => (item.id === id ? next : item)))
+      await saveItem(next)
+      return next
     },
     [],
   )
 
   const adjustQuantity = useCallback(
     async (id: string, delta: number) => {
-      await patchItem(id, (existing) => ({
+      return patchItem(id, (existing) => ({
         ...existing,
         quantity: clampQuantity(existing.quantity + delta),
         updatedAt: Date.now(),
@@ -137,7 +157,7 @@ export function usePantry() {
 
   const markEmpty = useCallback(
     async (id: string) => {
-      await patchItem(id, (existing) => ({
+      return patchItem(id, (existing) => ({
         ...existing,
         quantity: 0,
         updatedAt: Date.now(),
@@ -146,10 +166,56 @@ export function usePantry() {
     [patchItem],
   )
 
+  const restockRecent = useCallback(
+    async (name: string, unit: string, category: string) => {
+      const match = findNameMatch(itemsRef.current, name)
+      if (match) {
+        const item: PantryItem = {
+          ...match,
+          quantity: clampQuantity(match.quantity + 1),
+          updatedAt: Date.now(),
+        }
+        await upsert(item)
+        rememberAdd(item)
+        return { item, bumped: true as const, created: false as const }
+      }
+      const item = itemFromDraft({
+        name,
+        quantity: 1,
+        unit: unit || DEFAULT_UNIT,
+        category,
+        expiryDate: '',
+        notes: '',
+        lowStockThreshold: null,
+      })
+      await upsert(item)
+      rememberAdd(item)
+      return { item, bumped: false as const, created: true as const }
+    },
+    [upsert],
+  )
+
   const loadSamples = useCallback(async () => {
     const samples = sampleItems()
     setItems(samples)
     await replaceAll(samples)
+  }, [])
+
+  const replaceItems = useCallback(async (next: PantryItem[]) => {
+    const normalized = next.map((row) => normalizeItem(row) ?? row)
+    setItems(normalized)
+    await replaceAll(normalized)
+  }, [])
+
+  const mergeItems = useCallback(async (incoming: PantryItem[]) => {
+    const map = new Map(itemsRef.current.map((item) => [item.id, item]))
+    for (const row of incoming) {
+      const item = normalizeItem(row) ?? row
+      map.set(item.id, item)
+    }
+    const merged = Array.from(map.values()).sort((a, b) => b.updatedAt - a.updatedAt)
+    setItems(merged)
+    await replaceAll(merged)
   }, [])
 
   const stats = useMemo(
@@ -157,6 +223,7 @@ export function usePantry() {
       total: items.length,
       empty: items.filter((item) => item.quantity <= 0).length,
       expiring: items.filter(isExpiringConcern).length,
+      low: items.filter(isLowStock).length,
     }),
     [items],
   )
@@ -171,6 +238,9 @@ export function usePantry() {
     removeItem,
     adjustQuantity,
     markEmpty,
+    restockRecent,
     loadSamples,
+    replaceItems,
+    mergeItems,
   }
 }

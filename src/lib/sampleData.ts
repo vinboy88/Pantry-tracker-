@@ -1,8 +1,13 @@
 import { addDaysIso } from './dates.ts'
+import { normalizeItem } from './backup.ts'
 import type { PantryItem } from '../types.ts'
 
 function item(
-  partial: Omit<PantryItem, 'id' | 'createdAt' | 'updatedAt'> & { id: string; daysAgo?: number },
+  partial: Omit<PantryItem, 'id' | 'createdAt' | 'updatedAt' | 'lowStockThreshold'> & {
+    id: string
+    daysAgo?: number
+    lowStockThreshold?: number | null
+  },
 ): PantryItem {
   const updatedAt = Date.now() - (partial.daysAgo ?? 0) * 86_400_000
   return {
@@ -13,13 +18,14 @@ function item(
     category: partial.category,
     expiryDate: partial.expiryDate,
     notes: partial.notes,
+    lowStockThreshold: partial.lowStockThreshold ?? null,
     createdAt: updatedAt,
     updatedAt,
   }
 }
 
 export function sampleItems(): PantryItem[] {
-  return [
+  const samples = [
     item({
       id: 'sample-milk',
       name: 'Whole milk',
@@ -48,6 +54,7 @@ export function sampleItems(): PantryItem[] {
       expiryDate: addDaysIso(10),
       notes: '',
       daysAgo: 3,
+      lowStockThreshold: 12,
     }),
     item({
       id: 'sample-oil',
@@ -72,7 +79,7 @@ export function sampleItems(): PantryItem[] {
     item({
       id: 'sample-berries',
       name: 'Frozen blueberries',
-      quantity: 1,
+      quantity: 2,
       unit: 'bag',
       category: 'Frozen',
       expiryDate: addDaysIso(80),
@@ -84,7 +91,7 @@ export function sampleItems(): PantryItem[] {
       name: 'Sourdough',
       quantity: 1,
       unit: 'pcs',
-      category: 'Other',
+      category: 'Bread',
       expiryDate: addDaysIso(-1),
       notes: '',
     }),
@@ -97,6 +104,19 @@ export function sampleItems(): PantryItem[] {
       expiryDate: null,
       notes: '',
       daysAgo: 20,
+      lowStockThreshold: 0,
+    }),
+    item({
+      id: 'sample-oats',
+      name: 'Rolled oats',
+      quantity: 1,
+      unit: 'box',
+      category: 'Breakfast',
+      expiryDate: null,
+      notes: '',
+      daysAgo: 6,
+      lowStockThreshold: 1,
     }),
   ]
+  return samples.map((entry) => normalizeItem(entry) ?? entry)
 }

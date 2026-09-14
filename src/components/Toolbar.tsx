@@ -10,17 +10,13 @@ interface ToolbarProps {
   onStock: (value: StockFilter) => void
   sort: SortMode
   onSort: (value: SortMode) => void
+  lowCount: number
 }
 
 const SORTS: { id: SortMode; label: string }[] = [
   { id: 'name', label: 'Name' },
   { id: 'expiry', label: 'Expiry' },
   { id: 'updated', label: 'Updated' },
-]
-
-const STOCKS: { id: StockFilter; label: string }[] = [
-  { id: 'expiring', label: 'Expiring' },
-  { id: 'empty', label: 'Out' },
 ]
 
 export function Toolbar({
@@ -33,7 +29,14 @@ export function Toolbar({
   onStock,
   sort,
   onSort,
+  lowCount,
 }: ToolbarProps) {
+  const stocks: { id: StockFilter; label: string }[] = [
+    { id: 'low', label: lowCount > 0 ? `Low ${lowCount}` : 'Low' },
+    { id: 'expiring', label: 'Expiring' },
+    { id: 'empty', label: 'Out' },
+  ]
+
   return (
     <div className="toolbar">
       <label className="search">
@@ -65,11 +68,11 @@ export function Toolbar({
       </div>
 
       <div className="chips" role="tablist" aria-label="Filter items">
-        {STOCKS.map((option) => (
+        {stocks.map((option) => (
           <button
             key={option.id}
             type="button"
-            className={`chip ${stock === option.id ? 'is-on' : ''}`}
+            className={`chip ${stock === option.id ? 'is-on' : ''} ${option.id === 'low' && lowCount > 0 && stock !== 'low' ? 'chip-alert' : ''}`}
             onClick={() => onStock(stock === option.id ? 'all' : option.id)}
           >
             {option.label}

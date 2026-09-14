@@ -4,13 +4,27 @@ import { Header } from './components/Header.tsx'
 import { InstallHint } from './components/InstallHint.tsx'
 import { ItemCard } from './components/ItemCard.tsx'
 import { ItemEditor } from './components/ItemEditor.tsx'
+import { LowStockBanner } from './components/LowStockBanner.tsx'
+import { QuickAdd } from './components/QuickAdd.tsx'
+import { Settings } from './components/Settings.tsx'
+import { Toast } from './components/Toast.tsx'
 import { Toolbar } from './components/Toolbar.tsx'
 import { Welcome } from './components/Welcome.tsx'
-import { CATEGORIES, INSTALL_HINT_KEY, WELCOME_KEY } from './constants.ts'
+import { CATEGORIES, DEFAULT_UNIT, INSTALL_HINT_KEY, WELCOME_KEY } from './constants.ts'
 import { usePantry } from './hooks/usePantry.ts'
-import { filterAndSort, uniqueCategories } from './lib/query.ts'
+import { maybeLocalNotify, syncAppBadge } from './lib/alerts.ts'
+import { filterAndSort, formatQuantity, uniqueCategories } from './lib/query.ts'
+import {
+  dismissBanner,
+  isBannerDismissed,
+  readAlertPrefs,
+  readLastAdd,
+  readRecents,
+  writeAlertPrefs,
+} from './lib/prefs.ts'
+import { isLowStock, lowStockItems, lowStockKey } from './lib/stock.ts'
 import { applyTheme, isStandalone, readThemeMode } from './lib/theme.ts'
-import type { ItemDraft, SortMode, StockFilter, ThemeMode } from './types.ts'
+import type { AlertPrefs, ItemDraft, RecentItem, SortMode, StockFilter, ThemeMode } from './types.ts'
 
 function readFlag(key: string): boolean {
   try {
@@ -36,10 +50,19 @@ export default function App() {
   const [sort, setSort] = useState<SortMode>('updated')
   const [themeMode, setThemeMode] = useState<ThemeMode>(() => readThemeMode())
   const [editorId, setEditorId] = useState<string | 'new' | null>(null)
+  const [showSettings, setShowSettings] = useState(false)
   const [showWelcome, setShowWelcome] = useState(() => !readFlag(WELCOME_KEY))
   const [showInstallHint, setShowInstallHint] = useState(
     () => !readFlag(INSTALL_HINT_KEY) && !isStandalone(),
   )
+  const [recents, setRecents] = useState<RecentItem[]>(() => readRecents())
+  const [lastAdd, setLastAdd] = useState(() => readLastAdd())
+  const [alertPrefs, setAlertPrefs] = useState<AlertPrefs>(() => readAlertPrefs())
+  const [bannerHiddenKey, setBannerHiddenKey] = useState<string | null>(null)
+  const [toast, setToast] = useState<string | null>(null)
+
+  const lowItems = useMemo(() => lowStockItems(pantry.items), [pantry.items])
+  const bannerKey = useMemo(() => lowStockKey(pantry.items), [pantry.items])
 
   useEffect(() => {
     applyTheme(themeMode)
@@ -50,6 +73,32 @@ export default function App() {
     media.addEventListener('change', onChange)
     return () => media.removeEventListener('change', onChange)
   }, [themeMode])
+
+  useEffect(() => {
+    if (!pantry.ready) return
+    void syncAppBadge(lowItems.length)
+  }, [pantry.ready, lowItems.length])
+
+  useEffect(() => {
+    if (!pantry.ready) return
+
+    const ping = () => {
+      void maybeLocalNotify(pantry.items, alertPrefs.notifyOnOpen)
+    }
+
+    ping()
+    const onVis = () => {
+      if (document.visibilityState === 'visible') ping()
+    }
+    document.addEventListener('visibilitychange', onVis)
+    return () => document.removeEventListener('visibilitychange', onVis)
+  }, [pantry.ready, pantry.items, alertPrefs.notifyOnOpen])
+
+  useEffect(() => {
+    if (!toast) return
+    const timer = window.setTimeout(() => setToast(null), 2800)
+    return () => window.clearTimeout(timer)
+  }, [toast])
 
   const categories = useMemo(
     () => uniqueCategories(pantry.items, CATEGORIES),
@@ -83,25 +132,85 @@ export default function App() {
     setSort('updated')
   }
 
+  const refreshLocals = () => {
+    setRecents(readRecents())
+    setLastAdd(readLastAdd())
+  }
+
   const saveDraft = async (draft: ItemDraft) => {
     if (editorId && editorId !== 'new') {
       await pantry.updateItem(editorId, draft)
       return
     }
-    await pantry.addItem(draft)
+    const result = await pantry.addItem(draft)
+    refreshLocals()
+    if (result.bumped) {
+      setToast(
+        `Added ${formatQuantity(result.addedBy)} to ${result.item.name} · now ${formatQuantity(result.item.quantity)} ${result.item.unit}`,
+      )
+    }
     resetFilters()
   }
 
+  const quickAddName = async (name: string) => {
+    const result = await pantry.addItem({
+      name,
+      quantity: 1,
+      unit: lastAdd?.unit || DEFAULT_UNIT,
+      category: lastAdd?.category || '',
+      expiryDate: '',
+      notes: '',
+      lowStockThreshold: null,
+    })
+    refreshLocals()
+    if (result.bumped) {
+      setToast(
+        `Added 1 to ${result.item.name} · now ${formatQuantity(result.item.quantity)} ${result.item.unit}`,
+      )
+    } else {
+      setToast(`Added ${result.item.name}`)
+    }
+  }
+
+  const addRecent = async (recent: RecentItem) => {
+    const result = await pantry.restockRecent(recent.name, recent.unit, recent.category)
+    refreshLocals()
+    if (result.bumped) {
+      setToast(
+        `Added 1 to ${result.item.name} · now ${formatQuantity(result.item.quantity)} ${result.item.unit}`,
+      )
+    } else {
+      setToast(`Added ${result.item.name}`)
+    }
+  }
+
+  const onAdjust = async (id: string, delta: number) => {
+    const before = pantry.items.find((item) => item.id === id)
+    const after = await pantry.adjustQuantity(id, delta)
+    if (before && after && !isLowStock(before) && isLowStock(after)) {
+      setToast(`${after.name} is running low`)
+    }
+  }
+
   const filteredEmpty = pantry.items.length > 0 && visible.length === 0
+  const showQuickAdd = pantry.ready && !pantry.error && (pantry.items.length > 0 || recents.length > 0)
+  const showLowBanner =
+    pantry.ready &&
+    !showWelcome &&
+    lowItems.length > 0 &&
+    bannerHiddenKey !== bannerKey &&
+    !isBannerDismissed(bannerKey)
 
   return (
     <div className="app">
       <Header
         themeMode={themeMode}
         onCycleTheme={cycleTheme}
+        onOpenSettings={() => setShowSettings(true)}
         total={pantry.stats.total}
         expiring={pantry.stats.expiring}
         empty={pantry.stats.empty}
+        low={pantry.stats.low}
       />
 
       <Toolbar
@@ -114,6 +223,7 @@ export default function App() {
         onStock={setStock}
         sort={sort}
         onSort={setSort}
+        lowCount={pantry.stats.low}
       />
 
       {showInstallHint && !showWelcome ? (
@@ -123,6 +233,27 @@ export default function App() {
             setShowInstallHint(false)
           }}
         />
+      ) : null}
+
+      {showLowBanner ? (
+        <LowStockBanner
+          items={lowItems}
+          onShow={() => {
+            setStock('low')
+            setCategory('all')
+            setQuery('')
+            dismissBanner(bannerKey)
+            setBannerHiddenKey(bannerKey)
+          }}
+          onDismiss={() => {
+            dismissBanner(bannerKey)
+            setBannerHiddenKey(bannerKey)
+          }}
+        />
+      ) : null}
+
+      {showQuickAdd ? (
+        <QuickAdd recents={recents} busy={!pantry.ready} onAdd={quickAddName} onRecent={addRecent} />
       ) : null}
 
       <main className="feed">
@@ -144,7 +275,7 @@ export default function App() {
                 <ItemCard
                   item={item}
                   onOpen={() => setEditorId(item.id)}
-                  onAdjust={(delta) => void pantry.adjustQuantity(item.id, delta)}
+                  onAdjust={(delta) => void onAdjust(item.id, delta)}
                   onEmpty={() => void pantry.markEmpty(item.id)}
                 />
               </li>
@@ -164,9 +295,16 @@ export default function App() {
         </button>
       ) : null}
 
+      {toast ? <Toast message={toast} /> : null}
+
       {editorId ? (
         <ItemEditor
           item={editingItem}
+          items={pantry.items}
+          recents={recents}
+          extraCategories={categories}
+          lastUnit={lastAdd?.unit}
+          lastCategory={lastAdd?.category}
           onClose={() => setEditorId(null)}
           onSave={saveDraft}
           onDelete={
@@ -176,6 +314,20 @@ export default function App() {
                 }
               : undefined
           }
+        />
+      ) : null}
+
+      {showSettings ? (
+        <Settings
+          items={pantry.items}
+          alertPrefs={alertPrefs}
+          onAlertPrefs={(prefs) => {
+            writeAlertPrefs(prefs)
+            setAlertPrefs(prefs)
+          }}
+          onClose={() => setShowSettings(false)}
+          onReplace={pantry.replaceItems}
+          onMerge={pantry.mergeItems}
         />
       ) : null}
 

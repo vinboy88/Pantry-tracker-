@@ -1,5 +1,6 @@
 import { expiryLabel, itemTone } from '../lib/dates.ts'
 import { formatQuantity } from '../lib/query.ts'
+import { effectiveThreshold } from '../lib/stock.ts'
 import type { PantryItem } from '../types.ts'
 
 interface ItemCardProps {
@@ -13,11 +14,13 @@ const TONE_COPY: Record<string, string> = {
   empty: 'Out of stock',
   expired: 'Expired',
   soon: 'Use soon',
+  low: 'Low',
 }
 
 export function ItemCard({ item, onOpen, onAdjust, onEmpty }: ItemCardProps) {
   const tone = itemTone(item)
   const expiry = expiryLabel(item.expiryDate)
+  const threshold = effectiveThreshold(item)
 
   return (
     <article className={`card tone-${tone}`}>
@@ -27,6 +30,7 @@ export function ItemCard({ item, onOpen, onAdjust, onEmpty }: ItemCardProps) {
           <p>
             {item.category || 'Uncategorized'}
             {expiry ? ` · ${expiry}` : ''}
+            {tone === 'low' && threshold > 0 ? ` · alert at ${threshold}` : ''}
           </p>
           {item.notes ? <p className="card-notes">{item.notes}</p> : null}
         </div>
