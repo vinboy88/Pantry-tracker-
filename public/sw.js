@@ -1,7 +1,7 @@
 /* Pantry service worker — network-first with cache fallback.
    Paths are relative to this script so the same file works at "/" and
    at the GitHub Pages project base "/Pantry-tracker-/". */
-const CACHE_NAME = 'pantry-v2'
+const CACHE_NAME = 'pantry-v3'
 const SCOPE = new URL('./', self.location)
 
 const PRECACHE = [
@@ -72,3 +72,14 @@ async function respond(request) {
     return new Response('Offline', { status: 503, statusText: 'Offline' })
   }
 }
+
+self.addEventListener('notificationclick', (event) => {
+  event.notification.close()
+  event.waitUntil(
+    self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then((clients) => {
+      const existing = clients.find((client) => 'focus' in client)
+      if (existing) return existing.focus()
+      return self.clients.openWindow('./')
+    }),
+  )
+})

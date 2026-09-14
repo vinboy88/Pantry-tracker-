@@ -1,5 +1,6 @@
 import { SOON_DAYS } from '../constants.ts'
-import type { ExpiryTone, PantryItem } from '../types.ts'
+import { isLowStock } from './stock.ts'
+import type { ItemTone, PantryItem } from '../types.ts'
 
 export function todayIso(): string {
   const now = new Date()
@@ -48,12 +49,14 @@ export function expiryLabel(isoDate: string | null): string | null {
   return `Expires ${formatDay(isoDate)}`
 }
 
-export function itemTone(item: PantryItem): ExpiryTone {
+export function itemTone(item: PantryItem): ItemTone {
   if (item.quantity <= 0) return 'empty'
-  if (!item.expiryDate) return 'ok'
-  const delta = daysUntil(item.expiryDate)
-  if (delta < 0) return 'expired'
-  if (delta <= SOON_DAYS) return 'soon'
+  if (item.expiryDate) {
+    const delta = daysUntil(item.expiryDate)
+    if (delta < 0) return 'expired'
+    if (delta <= SOON_DAYS) return 'soon'
+  }
+  if (isLowStock(item)) return 'low'
   return 'ok'
 }
 

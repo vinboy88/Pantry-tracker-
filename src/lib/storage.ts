@@ -1,4 +1,5 @@
 import { DB_NAME, DB_VERSION, STORE_NAME } from '../constants.ts'
+import { normalizeItem } from './backup.ts'
 import type { PantryItem } from '../types.ts'
 
 const MEMORY_KEY = 'pantry.items.backup'
@@ -21,8 +22,9 @@ function readBackup(): PantryItem[] {
   try {
     const raw = localStorage.getItem(MEMORY_KEY)
     if (!raw) return []
-    const parsed = JSON.parse(raw) as PantryItem[]
-    return Array.isArray(parsed) ? parsed : []
+    const parsed = JSON.parse(raw) as unknown
+    if (!Array.isArray(parsed)) return []
+    return parsed.map((row) => normalizeItem(row)).filter((item): item is PantryItem => item !== null)
   } catch {
     return []
   }
@@ -42,7 +44,10 @@ export async function loadItems(): Promise<PantryItem[]> {
     const items = await new Promise<PantryItem[]>((resolve, reject) => {
       const tx = db.transaction(STORE_NAME, 'readonly')
       const request = tx.objectStore(STORE_NAME).getAll()
-      request.onsuccess = () => resolve((request.result as PantryItem[]) ?? [])
+      request.onsuccess = () => {
+        const rows = (request.result as unknown[]) ?? []
+        resolve(rows.map((row) => normalizeItem(row)).filter((item): item is PantryItem => item !== null))
+      }
       request.onerror = () => reject(request.error ?? new Error('Failed to read items'))
     })
     db.close()

@@ -4,19 +4,46 @@ A personal pantry tracker you can install on an iPhone from Safari. Add what you
 
 Data stays on the device (IndexedDB, with a localStorage fallback). After the first load, the app shell works offline.
 
-## What’s in v1
+## What’s in this version
 
 - Add, edit, and delete pantry items
-- Name, quantity + unit, optional category, expiry date, and notes
-- Search, category filter, and stock filters (all / expiring / out)
+- Name, quantity + unit, category, expiry date, notes, and optional low-stock threshold
+- Quick add on the list (name + Add) and one-tap recent items
+- Matching names bump quantity instead of creating a duplicate
+- Kitchen starter categories plus custom labels
+- Search, category filter, and stock filters (all / low / expiring / out)
 - Sort by name, soonest expiry, or recently updated
 - Thumb-friendly +/− quantity and “mark empty”
+- Low-stock badges, a Low filter chip, and an in-app banner when you open the app
 - Expiry highlighting (expired, use soon)
+- Settings: JSON + CSV export, JSON restore (replace or merge)
 - Light, dark, and system theme
 - First-run welcome + empty states
 - PWA: manifest, icons, service worker, iOS Add to Home Screen meta tags
 
 Out of scope: accounts, cloud sync, barcodes, recipes, shopping lists, App Store builds.
+
+## Low-stock alerts
+
+Each item can have its own **low-stock threshold**. Leave it blank to use the default of **1** — so a count of 1 (and not 0) is flagged as low. Set `0` to skip the low badge for that item. Quantity `0` is still **Out**, which is a separate filter.
+
+When you open Pantry, a banner lists items that are running low. Tap **Show** to jump to the Low filter. The same items get a **Low** pill on the card. If the Home Screen app supports it, the icon badge updates too.
+
+Pantry does **not** use Web Push. Background push is not reliable for an iPhone Home Screen PWA, and this app has no server. Alerts are in-app (banner, badges, toast when a count crosses the threshold). Settings can optionally request a local reminder when you open the app, once per day — a graceful extra, not a background notification.
+
+## Backup and restore
+
+Open **Settings** (gear in the header).
+
+- **Export JSON** — full pantry, including ids, thresholds, and timestamps. Prefer this for restore.
+- **Export CSV** — spreadsheet-friendly copy.
+- **Choose JSON backup** then **Replace pantry** (primary restore: two-tap confirm, overwrites everything) or **Merge into pantry** (keeps current items; matching ids update; new ids are added).
+
+On iPhone, export uses the share sheet when it can, so you can save to Files or iCloud Drive.
+
+### Safari storage wipe
+
+Safari can erase website data after unused time, especially if Pantry is **not** on the Home Screen. There is no cloud copy. Export JSON regularly, keep the file in Files/iCloud, and open the Home Screen app now and then so Safari is less likely to treat it as abandoned.
 
 ## Live site (GitHub Pages)
 
@@ -107,7 +134,8 @@ In another terminal, expose port `4173` with a tunnel (`cloudflared`, ngrok, or 
 
 - Items persist locally and remain available offline after that first visit.
 - To refresh after a new deploy, open the Home Screen app once while online.
+- Export a JSON backup from Settings and keep it somewhere Safari cannot wipe.
 
 ## Stack
 
-Vite, React, TypeScript. No backend. Persistence is IndexedDB (`pantry-tracker`). Theme and onboarding flags live in `localStorage`.
+Vite, React, TypeScript. No backend. Persistence is IndexedDB (`pantry-tracker`). Theme, recents, and onboarding flags live in `localStorage`.

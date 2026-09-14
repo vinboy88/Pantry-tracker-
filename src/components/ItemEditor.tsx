@@ -1,19 +1,40 @@
 import { useEffect, useId, useMemo, useRef, useState } from 'react'
-import { CATEGORIES, UNITS } from '../constants.ts'
-import { emptyDraft } from '../hooks/usePantry.ts'
-import type { ItemDraft, PantryItem } from '../types.ts'
+import { CATEGORIES, DEFAULT_LOW_STOCK_THRESHOLD, UNITS } from '../constants.ts'
+import { draftFromItem, emptyDraft } from '../hooks/usePantry.ts'
+import { findNameMatch, formatQuantity } from '../lib/query.ts'
+import { parseThreshold } from '../lib/stock.ts'
+import type { ItemDraft, PantryItem, RecentItem } from '../types.ts'
 
 interface ItemEditorProps {
   item: PantryItem | null
+  items: PantryItem[]
+  recents: RecentItem[]
+  extraCategories: string[]
+  lastUnit?: string
+  lastCategory?: string
   onClose: () => void
   onSave: (draft: ItemDraft) => Promise<void>
   onDelete?: () => Promise<void>
 }
 
-export function ItemEditor({ item, onClose, onSave, onDelete }: ItemEditorProps) {
+export function ItemEditor({
+  item,
+  items,
+  recents,
+  extraCategories,
+  lastUnit,
+  lastCategory,
+  onClose,
+  onSave,
+  onDelete,
+}: ItemEditorProps) {
   const titleId = useId()
   const nameRef = useRef<HTMLInputElement>(null)
-  const [draft, setDraft] = useState<ItemDraft>(item ? draftFrom(item) : emptyDraft())
+  const [draft, setDraft] = useState<ItemDraft>(() =>
+    item
+      ? draftFromItem(item)
+      : emptyDraft({ unit: lastUnit || 'pcs', category: lastCategory || '' }),
+  )
   const [error, setError] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
   const [confirmDelete, setConfirmDelete] = useState(false)
@@ -21,6 +42,9 @@ export function ItemEditor({ item, onClose, onSave, onDelete }: ItemEditorProps)
     item?.category && !CATEGORIES.includes(item.category as (typeof CATEGORIES)[number])
       ? item.category
       : '',
+  )
+  const [thresholdText, setThresholdText] = useState(
+    item?.lowStockThreshold == null ? '' : String(item.lowStockThreshold),
   )
 
   useEffect(() => {
@@ -38,15 +62,37 @@ export function ItemEditor({ item, onClose, onSave, onDelete }: ItemEditorProps)
   const categoryValue = customCategory || draft.category
 
   const categoryOptions = useMemo(() => {
+    const extras = extraCategories.filter(
+      (name) => name && !CATEGORIES.includes(name as (typeof CATEGORIES)[number]),
+    )
     if (customCategory && !CATEGORIES.includes(customCategory as (typeof CATEGORIES)[number])) {
-      return [...CATEGORIES, customCategory]
+      extras.push(customCategory)
     }
-    return CATEGORIES
-  }, [customCategory])
+    return [...CATEGORIES, ...Array.from(new Set(extras))]
+  }, [customCategory, extraCategories])
+
+  const match = !item ? findNameMatch(items, draft.name) : undefined
 
   const setField = <K extends keyof ItemDraft>(key: K, value: ItemDraft[K]) => {
     setDraft((current) => ({ ...current, [key]: value }))
     setError(null)
+  }
+
+  const applyRecent = (recent: RecentItem) => {
+    setDraft((current) => ({
+      ...current,
+      name: recent.name,
+      unit: recent.unit || current.unit,
+      category: recent.category,
+      quantity: current.quantity || 1,
+    }))
+    setCustomCategory(
+      recent.category && !CATEGORIES.includes(recent.category as (typeof CATEGORIES)[number])
+        ? recent.category
+        : '',
+    )
+    setError(null)
+    nameRef.current?.focus()
   }
 
   const submit = async () => {
@@ -61,6 +107,7 @@ export function ItemEditor({ item, onClose, onSave, onDelete }: ItemEditorProps)
         ...draft,
         category: categoryValue.trim(),
         quantity: Number(draft.quantity),
+        lowStockThreshold: parseThreshold(thresholdText),
       })
       onClose()
     } catch {
@@ -102,6 +149,29 @@ export function ItemEditor({ item, onClose, onSave, onDelete }: ItemEditorProps)
               maxLength={80}
             />
           </label>
+
+          {!item && recents.length > 0 ? (
+            <div className="chips wrap" aria-label="Recent items">
+              {recents.map((recent) => (
+                <button
+                  key={recent.name}
+                  type="button"
+                  className={`chip ${draft.name.toLowerCase() === recent.name.toLowerCase() ? 'is-on' : ''}`}
+                  onClick={() => applyRecent(recent)}
+                >
+                  {recent.name}
+                </button>
+              ))}
+            </div>
+          ) : null}
+
+          {match ? (
+            <p className="form-hint">
+              {match.name} is already in your pantry ({formatQuantity(match.quantity)} {match.unit}).
+              Save adds {formatQuantity(Number.isFinite(draft.quantity) && draft.quantity > 0 ? draft.quantity : 1)} more
+              instead of a duplicate.
+            </p>
+          ) : null}
 
           <div className="field-row">
             <label>
@@ -170,6 +240,23 @@ export function ItemEditor({ item, onClose, onSave, onDelete }: ItemEditorProps)
           </fieldset>
 
           <label>
+            Low-stock alert
+            <input
+              type="number"
+              inputMode="decimal"
+              min={0}
+              step="any"
+              value={thresholdText}
+              onChange={(event) => setThresholdText(event.target.value)}
+              placeholder={`${DEFAULT_LOW_STOCK_THRESHOLD} (default)`}
+            />
+          </label>
+          <p className="form-hint">
+            Flag this item when the count is at or below this number. Leave blank to use{' '}
+            {DEFAULT_LOW_STOCK_THRESHOLD}. Set 0 to skip the low badge (Out still shows at 0).
+          </p>
+
+          <label>
             Expiry date
             <input
               type="date"
@@ -192,7 +279,7 @@ export function ItemEditor({ item, onClose, onSave, onDelete }: ItemEditorProps)
           {error ? <p className="form-error">{error}</p> : null}
 
           <button type="submit" className="primary-btn" disabled={busy}>
-            {item ? 'Save changes' : 'Add to pantry'}
+            {item ? 'Save changes' : match ? `Add to ${match.name}` : 'Add to pantry'}
           </button>
 
           {onDelete ? (
@@ -214,15 +301,4 @@ export function ItemEditor({ item, onClose, onSave, onDelete }: ItemEditorProps)
       </section>
     </div>
   )
-}
-
-function draftFrom(item: PantryItem): ItemDraft {
-  return {
-    name: item.name,
-    quantity: item.quantity,
-    unit: item.unit,
-    category: item.category,
-    expiryDate: item.expiryDate ?? '',
-    notes: item.notes,
-  }
 }

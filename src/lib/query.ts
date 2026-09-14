@@ -1,11 +1,17 @@
 import { isExpiringConcern } from './dates.ts'
+import { isLowStock } from './stock.ts'
 import type { PantryItem, SortMode, StockFilter } from '../types.ts'
 
 export function uniqueCategories(items: PantryItem[], defaults: readonly string[]): string[] {
-  const extras = items
-    .map((item) => item.category.trim())
-    .filter((category) => category && !defaults.includes(category))
-  return [...defaults, ...Array.from(new Set(extras)).sort((a, b) => a.localeCompare(b))]
+  const used = new Set(
+    items.map((item) => item.category.trim()).filter((category) => category.length > 0),
+  )
+  const extras = Array.from(used)
+    .filter((category) => !defaults.includes(category))
+    .sort((a, b) => a.localeCompare(b))
+  const usedStarters = defaults.filter((category) => used.has(category))
+  const unusedStarters = defaults.filter((category) => !used.has(category))
+  return [...usedStarters, ...unusedStarters, ...extras]
 }
 
 export function filterAndSort(
@@ -22,6 +28,7 @@ export function filterAndSort(
     if (category !== 'all' && item.category !== category) return false
     if (stock === 'empty' && item.quantity > 0) return false
     if (stock === 'expiring' && !isExpiringConcern(item)) return false
+    if (stock === 'low' && !isLowStock(item)) return false
     return true
   })
 
@@ -45,4 +52,16 @@ export function formatQuantity(quantity: number): string {
 export function clampQuantity(value: number): number {
   if (!Number.isFinite(value)) return 0
   return Math.max(0, Math.round(value * 100) / 100)
+}
+
+export function normalizeName(name: string): string {
+  return name.trim().replace(/\s+/g, ' ').toLowerCase()
+}
+
+export function findNameMatch(items: PantryItem[], name: string): PantryItem | undefined {
+  const needle = normalizeName(name)
+  if (!needle) return undefined
+  const matches = items.filter((item) => normalizeName(item.name) === needle)
+  matches.sort((a, b) => b.updatedAt - a.updatedAt)
+  return matches[0]
 }
