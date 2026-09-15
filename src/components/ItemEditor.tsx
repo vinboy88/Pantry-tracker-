@@ -76,8 +76,16 @@ export function ItemEditor({
         next.notes = ''
       }
       if (seenLookup && seenLookup.unit && current.unit === seenLookup.unit) next.unit = DEFAULT_UNIT
+      // A blank new item still carries last-add category; drop it so lookup can fill
+      // or a miss does not look like a wrong match.
+      if (!current.name.trim() && lastCategory && current.category === lastCategory) {
+        next.category = ''
+      }
       return next
     })
+    if (!draft.name.trim() && lastCategory && draft.category === lastCategory) {
+      setCustomCategory('')
+    }
     setSeenLookup(null)
     setError(null)
   }

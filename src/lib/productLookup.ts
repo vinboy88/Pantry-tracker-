@@ -243,7 +243,7 @@ export function productFromOff(
   product: Record<string, unknown>,
   source: LookupSource = 'openfoodfacts',
 ): ProductLookup | null {
-  const brand = primaryBrand(readString(product, 'brands') || readString(product, 'brand_owner'))
+  const brand = primaryBrand(readString(product, 'brands'))
   const name = composeDisplayName(firstName(product), brand)
   if (!name) return null
   const category = mapCategory(

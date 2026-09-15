@@ -268,12 +268,12 @@ export default function App() {
       const existingNamed = Boolean(editingItem?.name.trim())
       if (existingNamed) return
       setEditorSeed((current) => {
-        if (current) {
-          return current.barcode ? current : { ...current, barcode: code }
-        }
+        const base = current ?? emptyDraft({ unit: DEFAULT_UNIT, category: '' })
         return {
-          ...emptyDraft({ unit: DEFAULT_UNIT, category: '' }),
+          ...base,
           barcode: code,
+          // Last-add category is not a typed choice for this scan.
+          category: base.name.trim() ? base.category : '',
         }
       })
       await runLookup(code)
