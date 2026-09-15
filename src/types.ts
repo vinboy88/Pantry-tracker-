@@ -36,6 +36,8 @@ export type ThemeMode = 'system' | 'light' | 'dark'
 export interface PantryItem {
   id: string
   name: string
+  /** Optional maker / store brand, e.g. Sanitarium, Coles. Empty string when unset. */
+  brand: string
   quantity: number
   unit: string
   category: string
@@ -51,6 +53,7 @@ export interface PantryItem {
 
 export interface ItemDraft {
   name: string
+  brand: string
   quantity: number
   unit: string
   category: string
@@ -66,6 +69,7 @@ export interface RecentItem {
   name: string
   unit: string
   category: string
+  brand: string
 }
 
 export interface LastAddPrefs {

@@ -45,6 +45,7 @@ export function readRecents(): RecentItem[] {
       name: entry.name.trim(),
       unit: typeof entry.unit === 'string' ? entry.unit : 'pcs',
       category: typeof entry.category === 'string' ? entry.category : '',
+      brand: typeof entry.brand === 'string' ? entry.brand.trim() : '',
     }))
     .slice(0, MAX_RECENTS)
 }
@@ -52,9 +53,14 @@ export function readRecents(): RecentItem[] {
 export function rememberRecent(entry: RecentItem): RecentItem[] {
   const name = entry.name.trim()
   if (!name) return readRecents()
+  const brand = typeof entry.brand === 'string' ? entry.brand.trim() : ''
   const next = [
-    { name, unit: entry.unit, category: entry.category },
-    ...readRecents().filter((item) => item.name.toLowerCase() !== name.toLowerCase()),
+    { name, unit: entry.unit, category: entry.category, brand },
+    ...readRecents().filter(
+      (item) =>
+        item.name.toLowerCase() !== name.toLowerCase() ||
+        item.brand.toLowerCase() !== brand.toLowerCase(),
+    ),
   ].slice(0, MAX_RECENTS)
   writeJson(RECENTS_KEY, next)
   return next

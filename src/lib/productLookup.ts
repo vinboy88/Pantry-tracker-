@@ -5,6 +5,7 @@ import type { Category } from '../types.ts'
 export interface ProductLookup {
   name: string
   category: string
+  brand: string
 }
 
 const OFF_FIELDS = 'product_name,product_name_en,generic_name,brands,categories_tags'
@@ -58,6 +59,15 @@ function clipName(name: string): string {
   return compact.slice(0, 80).trim()
 }
 
+function firstBrand(product: Record<string, unknown>): string {
+  const raw = product.brands
+  if (typeof raw !== 'string' || !raw.trim()) return ''
+  const first = raw.split(',')[0]?.trim() ?? ''
+  const compact = first.replace(/\s+/g, ' ').trim()
+  if (compact.length <= 60) return compact
+  return compact.slice(0, 60).trim()
+}
+
 /**
  * Best-effort public UPC/EAN name lookup. Fails open: network, CORS, or
  * unknown codes just return null so Kelvin can type the name.
@@ -85,7 +95,7 @@ export async function lookupProduct(barcode: string): Promise<ProductLookup | nu
     if (!name) return null
     const category = mapCategory(body.product.categories_tags)
     const allowed = CATEGORIES.includes(category as Category) ? category : ''
-    return { name, category: allowed }
+    return { name, category: allowed, brand: firstBrand(body.product) }
   } catch {
     return null
   } finally {

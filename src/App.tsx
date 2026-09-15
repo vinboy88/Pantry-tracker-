@@ -162,6 +162,7 @@ export default function App() {
   const quickAddName = async (name: string) => {
     const result = await pantry.addItem({
       name,
+      brand: '',
       quantity: 1,
       unit: lastAdd?.unit || DEFAULT_UNIT,
       category: lastAdd?.category || '',
@@ -181,7 +182,7 @@ export default function App() {
   }
 
   const addRecent = async (recent: RecentItem) => {
-    const result = await pantry.restockRecent(recent.name, recent.unit, recent.category)
+    const result = await pantry.restockRecent(recent.name, recent.unit, recent.category, recent.brand)
     refreshLocals()
     if (result.bumped) {
       setToast(
@@ -255,11 +256,11 @@ export default function App() {
     const found = await lookupProduct(code)
     setEditorSeed((current) => {
       if (!current || current.barcode !== code) return current
-      if (current.name.trim()) return current
       return {
         ...current,
-        name: found?.name ?? current.name,
+        name: current.name.trim() ? current.name : (found?.name ?? current.name),
         category: current.category || found?.category || '',
+        brand: current.brand.trim() ? current.brand : (found?.brand ?? current.brand),
       }
     })
     setLookupStatus(found?.name ? 'found' : 'miss')

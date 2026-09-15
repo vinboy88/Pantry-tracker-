@@ -2,7 +2,7 @@ import { useEffect, useId, useMemo, useRef, useState } from 'react'
 import { CATEGORIES, DEFAULT_LOW_STOCK_THRESHOLD, UNITS } from '../constants.ts'
 import { draftFromItem, emptyDraft } from '../hooks/usePantry.ts'
 import { findBarcodeMatch, normalizeBarcode } from '../lib/barcode.ts'
-import { findNameMatch, formatQuantity } from '../lib/query.ts'
+import { findNameMatch, formatQuantity, uniqueBrands } from '../lib/query.ts'
 import { parseThreshold } from '../lib/stock.ts'
 import type { ItemDraft, PantryItem, RecentItem } from '../types.ts'
 
@@ -38,6 +38,7 @@ export function ItemEditor({
   onDelete,
 }: ItemEditorProps) {
   const titleId = useId()
+  const brandListId = useId()
   const nameRef = useRef<HTMLInputElement>(null)
   const [draft, setDraft] = useState<ItemDraft>(() =>
     item
@@ -81,6 +82,10 @@ export function ItemEditor({
         next.category = initialDraft.category
         changed = true
       }
+      if (!current.brand.trim() && initialDraft.brand.trim()) {
+        next.brand = initialDraft.brand
+        changed = true
+      }
       return changed ? next : current
     })
     if (initialDraft.category && !CATEGORIES.includes(initialDraft.category as (typeof CATEGORIES)[number])) {
@@ -113,8 +118,9 @@ export function ItemEditor({
   }, [customCategory, extraCategories])
 
   const barcodeMatch = !item ? findBarcodeMatch(items, draft.barcode) : undefined
-  const nameMatch = !item ? findNameMatch(items, draft.name) : undefined
+  const nameMatch = !item ? findNameMatch(items, draft.name, draft.brand) : undefined
   const match = barcodeMatch ?? nameMatch
+  const brandSuggestions = useMemo(() => uniqueBrands(items), [items])
 
   const setField = <K extends keyof ItemDraft>(key: K, value: ItemDraft[K]) => {
     setDraft((current) => ({ ...current, [key]: value }))
@@ -125,6 +131,7 @@ export function ItemEditor({
     setDraft((current) => ({
       ...current,
       name: recent.name,
+      brand: recent.brand || current.brand,
       unit: recent.unit || current.unit,
       category: recent.category,
       quantity: current.quantity || 1,
@@ -194,16 +201,41 @@ export function ItemEditor({
             />
           </label>
 
+          <label>
+            Brand
+            <input
+              value={draft.brand}
+              onChange={(event) => setField('brand', event.target.value)}
+              placeholder="e.g. Sanitarium, Coles"
+              list={brandSuggestions.length > 0 ? brandListId : undefined}
+              autoComplete="off"
+              autoCorrect="on"
+              maxLength={60}
+            />
+            {brandSuggestions.length > 0 ? (
+              <datalist id={brandListId}>
+                {brandSuggestions.map((brand) => (
+                  <option key={brand} value={brand} />
+                ))}
+              </datalist>
+            ) : null}
+          </label>
+
           {!item && recents.length > 0 ? (
             <div className="chips wrap" aria-label="Recent items">
               {recents.map((recent) => (
                 <button
-                  key={recent.name}
+                  key={`${recent.name}::${recent.brand}`}
                   type="button"
-                  className={`chip ${draft.name.toLowerCase() === recent.name.toLowerCase() ? 'is-on' : ''}`}
+                  className={`chip ${
+                    draft.name.toLowerCase() === recent.name.toLowerCase() &&
+                    draft.brand.toLowerCase() === recent.brand.toLowerCase()
+                      ? 'is-on'
+                      : ''
+                  }`}
                   onClick={() => applyRecent(recent)}
                 >
-                  {recent.name}
+                  {recent.brand ? `${recent.name} · ${recent.brand}` : recent.name}
                 </button>
               ))}
             </div>
@@ -342,7 +374,7 @@ export function ItemEditor({
               rows={3}
               value={draft.notes}
               onChange={(event) => setField('notes', event.target.value)}
-              placeholder="Opened, location, brand…"
+              placeholder="Opened, location…"
               maxLength={240}
             />
           </label>

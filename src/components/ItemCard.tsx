@@ -27,6 +27,7 @@ export function ItemCard({ item, onOpen, onAdjust, onEmpty }: ItemCardProps) {
       <button type="button" className="card-main" onClick={onOpen}>
         <div className="card-copy">
           <h2>{item.name}</h2>
+          {item.brand ? <p className="card-brand">{item.brand}</p> : null}
           <p>
             {item.category || 'Uncategorized'}
             {expiry ? ` · ${expiry}` : ''}

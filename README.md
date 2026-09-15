@@ -7,12 +7,12 @@ Data stays on the device (IndexedDB, with a localStorage fallback). After the fi
 ## What’s in this version
 
 - Add, edit, and delete pantry items
-- Name, quantity + unit, category, expiry date, notes, optional barcode, and optional low-stock threshold
+- Name, quantity + unit, optional brand, category, expiry date, notes, optional barcode, and optional low-stock threshold
 - Scan a product barcode (camera, photo, or typed digits) to find an item or start a new one
 - Quick add on the list (name + Add) and one-tap recent items
 - Matching names or barcodes bump quantity instead of creating a duplicate
 - Kitchen starter categories plus custom labels
-- Search by name or barcode, category filter, and stock filters (all / low / expiring / out)
+- Search by name, brand, or barcode, category filter, and stock filters (all / low / expiring / out)
 - Sort by name, soonest expiry, or recently updated
 - Thumb-friendly +/− quantity and “mark empty”
 - Low-stock badges, a Low filter chip, and an in-app banner when you open the app
@@ -31,7 +31,7 @@ Scan is in the header (barcode icon), on Quick add, in the empty state, and on t
 1. Tap **Scan**. Pantry explains why it wants the camera, then asks Safari for permission.
 2. Point the rear camera at a UPC/EAN. Chrome and other browsers use `BarcodeDetector` when the phone has it; iPhone Safari falls back to ZXing in the page.
 3. If that item is already in the pantry, the count goes up by one and a toast confirms it.
-4. If it is new, the editor opens with the barcode filled. Pantry tries a public Open Food Facts lookup for a name. If nothing comes back, type the name.
+4. If it is new, the editor opens with the barcode filled. Pantry tries a public Open Food Facts lookup for a name and brand. If nothing comes back, type them. Lookup only fills empty name, brand, and category fields — it does not overwrite what you already typed.
 
 Camera is optional. **Type the numbers** or **Use a photo** if the live view fails.
 
@@ -60,8 +60,8 @@ Pantry does **not** use Web Push. Background push is not reliable for an iPhone 
 
 Open **Settings** (gear in the header).
 
-- **Export JSON** — full pantry, including ids, thresholds, barcodes, and timestamps. Prefer this for restore.
-- **Export CSV** — spreadsheet-friendly copy.
+- **Export JSON** — full pantry, including ids, brands, thresholds, barcodes, and timestamps. Prefer this for restore. Older JSON files without `brand` still import; missing brand becomes empty.
+- **Export CSV** — spreadsheet-friendly copy, including brand.
 - **Choose JSON backup** then **Replace pantry** (primary restore: two-tap confirm, overwrites everything) or **Merge into pantry** (keeps current items; matching ids update; new ids are added).
 
 On iPhone, export uses the share sheet when it can, so you can save to Files or iCloud Drive.
