@@ -3,17 +3,22 @@ import { normalizeItem } from './backup.ts'
 import type { PantryItem } from '../types.ts'
 
 function item(
-  partial: Omit<PantryItem, 'id' | 'createdAt' | 'updatedAt' | 'lowStockThreshold' | 'barcode'> & {
+  partial: Omit<
+    PantryItem,
+    'id' | 'createdAt' | 'updatedAt' | 'lowStockThreshold' | 'barcode' | 'brand'
+  > & {
     id: string
     daysAgo?: number
     lowStockThreshold?: number | null
     barcode?: string
+    brand?: string
   },
 ): PantryItem {
   const updatedAt = Date.now() - (partial.daysAgo ?? 0) * 86_400_000
   return {
     id: partial.id,
     name: partial.name,
+    brand: partial.brand ?? '',
     quantity: partial.quantity,
     unit: partial.unit,
     category: partial.category,
@@ -81,6 +86,7 @@ export function sampleItems(): PantryItem[] {
     item({
       id: 'sample-berries',
       name: 'Frozen blueberries',
+      brand: 'Woolworths',
       quantity: 2,
       unit: 'bag',
       category: 'Frozen',
@@ -111,6 +117,7 @@ export function sampleItems(): PantryItem[] {
     item({
       id: 'sample-oats',
       name: 'Rolled oats',
+      brand: 'Coles',
       quantity: 1,
       unit: 'box',
       category: 'Breakfast',

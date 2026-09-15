@@ -52,13 +52,13 @@ export function QuickAdd({ recents, busy, onAdd, onRecent, onScan }: QuickAddPro
         <div className="chips" aria-label="Add a recent item">
           {recents.map((recent) => (
             <button
-              key={recent.name}
+              key={`${recent.name}::${recent.brand}`}
               type="button"
               className="chip"
               disabled={busy}
               onClick={() => void onRecent(recent)}
             >
-              + {recent.name}
+              + {recent.brand ? `${recent.name} · ${recent.brand}` : recent.name}
             </button>
           ))}
         </div>

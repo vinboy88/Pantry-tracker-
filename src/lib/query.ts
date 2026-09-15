@@ -23,12 +23,14 @@ export function filterAndSort(
   sort: SortMode,
 ): PantryItem[] {
   const needle = query.trim().toLowerCase()
+  const barcodeNeedle = needle.replace(/[\s-]/g, '')
 
   const filtered = items.filter((item) => {
     if (
       needle &&
       !item.name.toLowerCase().includes(needle) &&
-      !barcodeSearchHaystack(item.barcode).includes(needle.replace(/[\s-]/g, ''))
+      !item.brand.toLowerCase().includes(needle) &&
+      !barcodeSearchHaystack(item.barcode).includes(barcodeNeedle)
     ) {
       return false
     }
@@ -65,10 +67,53 @@ export function normalizeName(name: string): string {
   return name.trim().replace(/\s+/g, ' ').toLowerCase()
 }
 
-export function findNameMatch(items: PantryItem[], name: string): PantryItem | undefined {
+const MAX_BRAND = 60
+
+/** Trim, collapse spaces, and clip. Empty string when unset. */
+export function normalizeBrand(brand: string): string {
+  const compact = brand.trim().replace(/\s+/g, ' ')
+  if (compact.length <= MAX_BRAND) return compact
+  return compact.slice(0, MAX_BRAND).trim()
+}
+
+export function uniqueBrands(items: readonly PantryItem[]): string[] {
+  const seen = new Set<string>()
+  const brands: string[] = []
+  for (const item of items) {
+    const brand = normalizeBrand(item.brand)
+    if (!brand) continue
+    const key = brand.toLowerCase()
+    if (seen.has(key)) continue
+    seen.add(key)
+    brands.push(brand)
+  }
+  brands.sort((a, b) => a.localeCompare(b, undefined, { sensitivity: 'base' }))
+  return brands
+}
+
+/**
+ * Match by name. When `brand` is set, prefer the same brand, then an unbranded
+ * name twin (so restock can fill brand). Different brands stay separate items.
+ */
+export function findNameMatch(
+  items: PantryItem[],
+  name: string,
+  brand?: string,
+): PantryItem | undefined {
   const needle = normalizeName(name)
   if (!needle) return undefined
-  const matches = items.filter((item) => normalizeName(item.name) === needle)
-  matches.sort((a, b) => b.updatedAt - a.updatedAt)
-  return matches[0]
+  const nameMatches = items.filter((item) => normalizeName(item.name) === needle)
+  const brandNeedle = normalizeName(brand ?? '')
+
+  if (brandNeedle) {
+    const branded = nameMatches.filter((item) => normalizeName(item.brand) === brandNeedle)
+    branded.sort((a, b) => b.updatedAt - a.updatedAt)
+    if (branded[0]) return branded[0]
+    const unbranded = nameMatches.filter((item) => !normalizeName(item.brand))
+    unbranded.sort((a, b) => b.updatedAt - a.updatedAt)
+    return unbranded[0]
+  }
+
+  nameMatches.sort((a, b) => b.updatedAt - a.updatedAt)
+  return nameMatches[0]
 }

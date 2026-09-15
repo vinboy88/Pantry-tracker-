@@ -3,7 +3,7 @@ import { DEFAULT_UNIT } from '../constants.ts'
 import { isExpiringConcern } from '../lib/dates.ts'
 import { rememberRecent, writeLastAdd } from '../lib/prefs.ts'
 import { findBarcodeMatch, normalizeBarcode } from '../lib/barcode.ts'
-import { clampQuantity, findNameMatch } from '../lib/query.ts'
+import { clampQuantity, findNameMatch, normalizeBrand } from '../lib/query.ts'
 import { sampleItems } from '../lib/sampleData.ts'
 import { isLowStock } from '../lib/stock.ts'
 import { deleteItem, loadItems, replaceAll, saveItem } from '../lib/storage.ts'
@@ -13,6 +13,7 @@ import type { ItemDraft, LastAddPrefs, PantryItem } from '../types.ts'
 export function emptyDraft(prefs?: LastAddPrefs | null): ItemDraft {
   return {
     name: '',
+    brand: '',
     quantity: 1,
     unit: prefs?.unit || DEFAULT_UNIT,
     category: prefs?.category || '',
@@ -26,6 +27,7 @@ export function emptyDraft(prefs?: LastAddPrefs | null): ItemDraft {
 export function draftFromItem(item: PantryItem): ItemDraft {
   return {
     name: item.name,
+    brand: item.brand,
     quantity: item.quantity,
     unit: item.unit,
     category: item.category,
@@ -41,6 +43,7 @@ function itemFromDraft(draft: ItemDraft, existing?: PantryItem): PantryItem {
   return {
     id: existing?.id ?? newId(),
     name: draft.name.trim(),
+    brand: normalizeBrand(draft.brand),
     quantity: clampQuantity(draft.quantity),
     unit: draft.unit || DEFAULT_UNIT,
     category: draft.category.trim(),
@@ -55,7 +58,7 @@ function itemFromDraft(draft: ItemDraft, existing?: PantryItem): PantryItem {
 
 function rememberAdd(item: PantryItem): void {
   writeLastAdd({ unit: item.unit, category: item.category })
-  rememberRecent({ name: item.name, unit: item.unit, category: item.category })
+  rememberRecent({ name: item.name, unit: item.unit, category: item.category, brand: item.brand })
 }
 
 export function usePantry() {
@@ -101,13 +104,14 @@ export function usePantry() {
   const addItem = useCallback(
     async (draft: ItemDraft) => {
       const barcodeMatch = findBarcodeMatch(itemsRef.current, draft.barcode)
-      const match = barcodeMatch ?? findNameMatch(itemsRef.current, draft.name)
+      const match = barcodeMatch ?? findNameMatch(itemsRef.current, draft.name, draft.brand)
       if (match) {
         const addBy = clampQuantity(draft.quantity) || 1
         const item: PantryItem = {
           ...match,
           quantity: clampQuantity(match.quantity + addBy),
           barcode: match.barcode || normalizeBarcode(draft.barcode),
+          brand: match.brand || normalizeBrand(draft.brand),
           updatedAt: Date.now(),
         }
         await upsert(item)
@@ -173,12 +177,13 @@ export function usePantry() {
   )
 
   const restockRecent = useCallback(
-    async (name: string, unit: string, category: string) => {
-      const match = findNameMatch(itemsRef.current, name)
+    async (name: string, unit: string, category: string, brand = '') => {
+      const match = findNameMatch(itemsRef.current, name, brand)
       if (match) {
         const item: PantryItem = {
           ...match,
           quantity: clampQuantity(match.quantity + 1),
+          brand: match.brand || normalizeBrand(brand),
           updatedAt: Date.now(),
         }
         await upsert(item)
@@ -187,6 +192,7 @@ export function usePantry() {
       }
       const item = itemFromDraft({
         name,
+        brand,
         quantity: 1,
         unit: unit || DEFAULT_UNIT,
         category,
