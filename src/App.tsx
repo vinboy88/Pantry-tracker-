@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { BarcodeScanner } from './components/BarcodeScanner.tsx'
 import { EmptyState } from './components/EmptyState.tsx'
 import { Header } from './components/Header.tsx'
@@ -15,7 +15,12 @@ import { CATEGORIES, DEFAULT_UNIT, INSTALL_HINT_KEY, WELCOME_KEY } from './const
 import { emptyDraft, usePantry } from './hooks/usePantry.ts'
 import { maybeLocalNotify, syncAppBadge } from './lib/alerts.ts'
 import { findBarcodeMatch, normalizeBarcode } from './lib/barcode.ts'
-import { lookupProduct } from './lib/productLookup.ts'
+import {
+  applyLookupToDraft,
+  lookupProduct,
+  type LookupOutcome,
+  type ProductLookup,
+} from './lib/productLookup.ts'
 import { filterAndSort, formatQuantity, uniqueCategories } from './lib/query.ts'
 import {
   dismissBanner,
@@ -54,8 +59,12 @@ export default function App() {
   const [themeMode, setThemeMode] = useState<ThemeMode>(() => readThemeMode())
   const [editorId, setEditorId] = useState<string | 'new' | null>(null)
   const [editorSeed, setEditorSeed] = useState<ItemDraft | null>(null)
-  const [lookupStatus, setLookupStatus] = useState<'idle' | 'loading' | 'found' | 'miss'>('idle')
+  const [lookupStatus, setLookupStatus] = useState<'idle' | 'loading' | 'found' | 'miss' | 'error'>(
+    'idle',
+  )
+  const [lookupHit, setLookupHit] = useState<ProductLookup | null>(null)
   const [incomingBarcode, setIncomingBarcode] = useState<string | null>(null)
+  const lookupGen = useRef(0)
   const [scannerMode, setScannerMode] = useState<'lookup' | 'attach' | null>(null)
   const [showSettings, setShowSettings] = useState(false)
   const [showWelcome, setShowWelcome] = useState(() => !readFlag(WELCOME_KEY))
@@ -200,25 +209,52 @@ export default function App() {
     }
   }
 
+  const resetLookup = () => {
+    lookupGen.current += 1
+    setLookupStatus('idle')
+    setLookupHit(null)
+    setIncomingBarcode(null)
+  }
+
   const closeEditor = () => {
     setEditorId(null)
     setEditorSeed(null)
-    setLookupStatus('idle')
-    setIncomingBarcode(null)
+    resetLookup()
   }
 
   const openNew = (seed?: ItemDraft) => {
     setEditorSeed(seed ?? null)
-    setLookupStatus('idle')
-    setIncomingBarcode(null)
+    resetLookup()
     setEditorId('new')
   }
 
   const openExisting = (id: string) => {
     setEditorSeed(null)
-    setLookupStatus('idle')
-    setIncomingBarcode(null)
+    resetLookup()
     setEditorId(id)
+  }
+
+  const applyOutcome = (code: string, outcome: LookupOutcome) => {
+    if (outcome.status !== 'found') {
+      setLookupStatus(outcome.status === 'error' ? 'error' : 'miss')
+      return
+    }
+    setLookupHit(outcome.product)
+    setEditorSeed((current) => {
+      if (!current) return current
+      if (normalizeBarcode(current.barcode) !== code) return current
+      return applyLookupToDraft(current, outcome.product)
+    })
+    setLookupStatus('found')
+  }
+
+  const runLookup = async (code: string) => {
+    const gen = ++lookupGen.current
+    setLookupStatus('loading')
+    setLookupHit(null)
+    const outcome = await lookupProduct(code)
+    if (lookupGen.current !== gen) return
+    applyOutcome(code, outcome)
   }
 
   const onScannedBarcode = async (raw: string) => {
@@ -229,6 +265,18 @@ export default function App() {
 
     if (mode === 'attach') {
       setIncomingBarcode(code)
+      const existingNamed = Boolean(editingItem?.name.trim())
+      if (existingNamed) return
+      setEditorSeed((current) => {
+        if (current) {
+          return current.barcode ? current : { ...current, barcode: code }
+        }
+        return {
+          ...emptyDraft({ unit: DEFAULT_UNIT, category: '' }),
+          barcode: code,
+        }
+      })
+      await runLookup(code)
       return
     }
 
@@ -247,22 +295,12 @@ export default function App() {
     }
 
     const seed: ItemDraft = {
-      ...emptyDraft(lastAdd),
+      ...emptyDraft({ unit: DEFAULT_UNIT, category: '' }),
       barcode: code,
     }
     openNew(seed)
-    setLookupStatus('loading')
-    const found = await lookupProduct(code)
-    setEditorSeed((current) => {
-      if (!current || current.barcode !== code) return current
-      if (current.name.trim()) return current
-      return {
-        ...current,
-        name: found?.name ?? current.name,
-        category: current.category || found?.category || '',
-      }
-    })
-    setLookupStatus(found?.name ? 'found' : 'miss')
+    setIncomingBarcode(code)
+    await runLookup(code)
   }
 
   const filteredEmpty = pantry.items.length > 0 && visible.length === 0
@@ -389,6 +427,7 @@ export default function App() {
           initialDraft={editorSeed ?? undefined}
           incomingBarcode={incomingBarcode}
           lookupStatus={lookupStatus}
+          lookupHit={lookupHit}
           onScanBarcode={() => setScannerMode('attach')}
           onClose={closeEditor}
           onSave={saveDraft}
