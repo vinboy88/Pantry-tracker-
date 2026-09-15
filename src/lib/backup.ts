@@ -1,5 +1,6 @@
 import { APP_NAME } from '../constants.ts'
 import type { BackupFile, PantryItem } from '../types.ts'
+import { normalizeBarcode } from './barcode.ts'
 import { clampQuantity } from './query.ts'
 
 export function newId(): string {
@@ -58,6 +59,7 @@ export function normalizeItem(raw: unknown, now = Date.now()): PantryItem | null
     expiryDate,
     notes: asString(row.notes).trim(),
     lowStockThreshold: asThreshold(row.lowStockThreshold),
+    barcode: normalizeBarcode(asString(row.barcode)),
     createdAt: asTimestamp(row.createdAt, now),
     updatedAt: asTimestamp(row.updatedAt, now),
   }
@@ -116,6 +118,7 @@ export function toBackupCsv(items: PantryItem[]): string {
     'expiryDate',
     'notes',
     'lowStockThreshold',
+    'barcode',
     'createdAt',
     'updatedAt',
   ]
@@ -131,6 +134,7 @@ export function toBackupCsv(items: PantryItem[]): string {
         csvCell(item.expiryDate),
         csvCell(item.notes),
         csvCell(item.lowStockThreshold),
+        csvCell(item.barcode),
         csvCell(item.createdAt),
         csvCell(item.updatedAt),
       ].join(','),

@@ -43,6 +43,8 @@ export interface PantryItem {
   notes: string
   /** When null, the app uses DEFAULT_LOW_STOCK_THRESHOLD (1). 0 disables the low badge. */
   lowStockThreshold: number | null
+  /** Normalized UPC/EAN when known; empty string otherwise. */
+  barcode: string
   createdAt: number
   updatedAt: number
 }
@@ -55,6 +57,7 @@ export interface ItemDraft {
   expiryDate: string
   notes: string
   lowStockThreshold: number | null
+  barcode: string
 }
 
 export type ItemTone = 'ok' | 'soon' | 'expired' | 'empty' | 'low'

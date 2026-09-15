@@ -1,6 +1,7 @@
 import { useEffect, useId, useMemo, useRef, useState } from 'react'
 import { CATEGORIES, DEFAULT_LOW_STOCK_THRESHOLD, UNITS } from '../constants.ts'
 import { draftFromItem, emptyDraft } from '../hooks/usePantry.ts'
+import { findBarcodeMatch, normalizeBarcode } from '../lib/barcode.ts'
 import { findNameMatch, formatQuantity } from '../lib/query.ts'
 import { parseThreshold } from '../lib/stock.ts'
 import type { ItemDraft, PantryItem, RecentItem } from '../types.ts'
@@ -12,6 +13,10 @@ interface ItemEditorProps {
   extraCategories: string[]
   lastUnit?: string
   lastCategory?: string
+  initialDraft?: ItemDraft
+  incomingBarcode?: string | null
+  lookupStatus?: 'idle' | 'loading' | 'found' | 'miss'
+  onScanBarcode?: () => void
   onClose: () => void
   onSave: (draft: ItemDraft) => Promise<void>
   onDelete?: () => Promise<void>
@@ -24,6 +29,10 @@ export function ItemEditor({
   extraCategories,
   lastUnit,
   lastCategory,
+  initialDraft,
+  incomingBarcode,
+  lookupStatus = 'idle',
+  onScanBarcode,
   onClose,
   onSave,
   onDelete,
@@ -33,7 +42,7 @@ export function ItemEditor({
   const [draft, setDraft] = useState<ItemDraft>(() =>
     item
       ? draftFromItem(item)
-      : emptyDraft({ unit: lastUnit || 'pcs', category: lastCategory || '' }),
+      : (initialDraft ?? emptyDraft({ unit: lastUnit || 'pcs', category: lastCategory || '' })),
   )
   const [error, setError] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
@@ -46,6 +55,38 @@ export function ItemEditor({
   const [thresholdText, setThresholdText] = useState(
     item?.lowStockThreshold == null ? '' : String(item.lowStockThreshold),
   )
+  const [seenBarcode, setSeenBarcode] = useState(incomingBarcode ?? null)
+  const [seenSeed, setSeenSeed] = useState(initialDraft)
+
+  if (incomingBarcode && incomingBarcode !== seenBarcode) {
+    setSeenBarcode(incomingBarcode)
+    setDraft((current) => ({ ...current, barcode: incomingBarcode }))
+    setError(null)
+  }
+
+  if (!item && initialDraft && initialDraft !== seenSeed) {
+    setSeenSeed(initialDraft)
+    setDraft((current) => {
+      const next = { ...current }
+      let changed = false
+      if (!current.barcode && initialDraft.barcode) {
+        next.barcode = initialDraft.barcode
+        changed = true
+      }
+      if (!current.name.trim() && initialDraft.name.trim()) {
+        next.name = initialDraft.name
+        changed = true
+      }
+      if (!current.category && initialDraft.category) {
+        next.category = initialDraft.category
+        changed = true
+      }
+      return changed ? next : current
+    })
+    if (initialDraft.category && !CATEGORIES.includes(initialDraft.category as (typeof CATEGORIES)[number])) {
+      setCustomCategory((current) => current || initialDraft.category)
+    }
+  }
 
   useEffect(() => {
     const timer = window.setTimeout(() => nameRef.current?.focus(), 80)
@@ -71,7 +112,9 @@ export function ItemEditor({
     return [...CATEGORIES, ...Array.from(new Set(extras))]
   }, [customCategory, extraCategories])
 
-  const match = !item ? findNameMatch(items, draft.name) : undefined
+  const barcodeMatch = !item ? findBarcodeMatch(items, draft.barcode) : undefined
+  const nameMatch = !item ? findNameMatch(items, draft.name) : undefined
+  const match = barcodeMatch ?? nameMatch
 
   const setField = <K extends keyof ItemDraft>(key: K, value: ItemDraft[K]) => {
     setDraft((current) => ({ ...current, [key]: value }))
@@ -105,6 +148,7 @@ export function ItemEditor({
     try {
       await onSave({
         ...draft,
+        barcode: normalizeBarcode(draft.barcode),
         category: categoryValue.trim(),
         quantity: Number(draft.quantity),
         lowStockThreshold: parseThreshold(thresholdText),
@@ -165,9 +209,36 @@ export function ItemEditor({
             </div>
           ) : null}
 
+          <label className="barcode-field">
+            Barcode
+            <div className="barcode-row">
+              <input
+                value={draft.barcode}
+                onChange={(event) => setField('barcode', event.target.value)}
+                placeholder="UPC / EAN"
+                inputMode="numeric"
+                autoComplete="off"
+                autoCorrect="off"
+              />
+              {onScanBarcode ? (
+                <button type="button" className="ghost-btn" onClick={onScanBarcode}>
+                  Scan
+                </button>
+              ) : null}
+            </div>
+          </label>
+          {lookupStatus === 'loading' ? (
+            <p className="form-hint">Looking up this barcode…</p>
+          ) : null}
+          {lookupStatus === 'miss' && !draft.name.trim() ? (
+            <p className="form-hint">No public name found — type one.</p>
+          ) : null}
+
           {match ? (
             <p className="form-hint">
-              {match.name} is already in your pantry ({formatQuantity(match.quantity)} {match.unit}).
+              {barcodeMatch
+                ? `${match.name} already has this barcode (${formatQuantity(match.quantity)} ${match.unit}).`
+                : `${match.name} is already in your pantry (${formatQuantity(match.quantity)} ${match.unit}).`}{' '}
               Save adds {formatQuantity(Number.isFinite(draft.quantity) && draft.quantity > 0 ? draft.quantity : 1)} more
               instead of a duplicate.
             </p>

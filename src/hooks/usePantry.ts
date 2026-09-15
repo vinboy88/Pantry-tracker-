@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { DEFAULT_UNIT } from '../constants.ts'
 import { isExpiringConcern } from '../lib/dates.ts'
 import { rememberRecent, writeLastAdd } from '../lib/prefs.ts'
+import { findBarcodeMatch, normalizeBarcode } from '../lib/barcode.ts'
 import { clampQuantity, findNameMatch } from '../lib/query.ts'
 import { sampleItems } from '../lib/sampleData.ts'
 import { isLowStock } from '../lib/stock.ts'
@@ -18,6 +19,7 @@ export function emptyDraft(prefs?: LastAddPrefs | null): ItemDraft {
     expiryDate: '',
     notes: '',
     lowStockThreshold: null,
+    barcode: '',
   }
 }
 
@@ -30,6 +32,7 @@ export function draftFromItem(item: PantryItem): ItemDraft {
     expiryDate: item.expiryDate ?? '',
     notes: item.notes,
     lowStockThreshold: item.lowStockThreshold,
+    barcode: item.barcode,
   }
 }
 
@@ -44,6 +47,7 @@ function itemFromDraft(draft: ItemDraft, existing?: PantryItem): PantryItem {
     expiryDate: draft.expiryDate || null,
     notes: draft.notes.trim(),
     lowStockThreshold: draft.lowStockThreshold,
+    barcode: normalizeBarcode(draft.barcode),
     createdAt: existing?.createdAt ?? now,
     updatedAt: now,
   }
@@ -96,12 +100,14 @@ export function usePantry() {
 
   const addItem = useCallback(
     async (draft: ItemDraft) => {
-      const match = findNameMatch(itemsRef.current, draft.name)
+      const barcodeMatch = findBarcodeMatch(itemsRef.current, draft.barcode)
+      const match = barcodeMatch ?? findNameMatch(itemsRef.current, draft.name)
       if (match) {
         const addBy = clampQuantity(draft.quantity) || 1
         const item: PantryItem = {
           ...match,
           quantity: clampQuantity(match.quantity + addBy),
+          barcode: match.barcode || normalizeBarcode(draft.barcode),
           updatedAt: Date.now(),
         }
         await upsert(item)
@@ -187,6 +193,7 @@ export function usePantry() {
         expiryDate: '',
         notes: '',
         lowStockThreshold: null,
+        barcode: '',
       })
       await upsert(item)
       rememberAdd(item)

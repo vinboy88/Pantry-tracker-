@@ -6,9 +6,10 @@ interface QuickAddProps {
   busy: boolean
   onAdd: (name: string) => Promise<void>
   onRecent: (recent: RecentItem) => Promise<void>
+  onScan: () => void
 }
 
-export function QuickAdd({ recents, busy, onAdd, onRecent }: QuickAddProps) {
+export function QuickAdd({ recents, busy, onAdd, onRecent, onScan }: QuickAddProps) {
   const [name, setName] = useState('')
 
   return (
@@ -35,6 +36,14 @@ export function QuickAdd({ recents, busy, onAdd, onRecent }: QuickAddProps) {
             disabled={busy}
           />
         </label>
+        <button type="button" className="ghost-btn icon-btn" onClick={onScan} disabled={busy} aria-label="Scan barcode">
+          <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true">
+            <path
+              fill="currentColor"
+              d="M2 6h2v12H2V6zm4 0h1v12H6V6zm3 0h2v12H9V6zm4 0h1v12h-1V6zm3 0h3v12h-3V6zm5 0h1v12h-1V6z"
+            />
+          </svg>
+        </button>
         <button type="submit" className="quick-add-btn" disabled={busy || !name.trim()}>
           Add
         </button>
@@ -54,7 +63,7 @@ export function QuickAdd({ recents, busy, onAdd, onRecent }: QuickAddProps) {
           ))}
         </div>
       ) : (
-        <p className="quick-add-hint">Uses last unit and category. Matching names add to the count.</p>
+        <p className="quick-add-hint">Uses last unit and category. Matching names add to the count. Scan to skip typing.</p>
       )}
     </section>
   )

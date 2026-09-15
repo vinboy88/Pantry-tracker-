@@ -1,7 +1,7 @@
 /* Pantry service worker — network-first with cache fallback.
    Paths are relative to this script so the same file works at "/" and
    at the GitHub Pages project base "/Pantry-tracker-/". */
-const CACHE_NAME = 'pantry-v3'
+const CACHE_NAME = 'pantry-v4'
 const SCOPE = new URL('./', self.location)
 
 const PRECACHE = [

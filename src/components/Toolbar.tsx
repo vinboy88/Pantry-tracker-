@@ -43,7 +43,7 @@ export function Toolbar({
         <span className="sr-only">Search pantry</span>
         <input
           type="search"
-          placeholder="Search by name"
+          placeholder="Search name or barcode"
           value={query}
           onChange={(event) => onQuery(event.target.value)}
           enterKeyHint="search"

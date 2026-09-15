@@ -3,10 +3,11 @@ import { normalizeItem } from './backup.ts'
 import type { PantryItem } from '../types.ts'
 
 function item(
-  partial: Omit<PantryItem, 'id' | 'createdAt' | 'updatedAt' | 'lowStockThreshold'> & {
+  partial: Omit<PantryItem, 'id' | 'createdAt' | 'updatedAt' | 'lowStockThreshold' | 'barcode'> & {
     id: string
     daysAgo?: number
     lowStockThreshold?: number | null
+    barcode?: string
   },
 ): PantryItem {
   const updatedAt = Date.now() - (partial.daysAgo ?? 0) * 86_400_000
@@ -19,6 +20,7 @@ function item(
     expiryDate: partial.expiryDate,
     notes: partial.notes,
     lowStockThreshold: partial.lowStockThreshold ?? null,
+    barcode: partial.barcode ?? '',
     createdAt: updatedAt,
     updatedAt,
   }
