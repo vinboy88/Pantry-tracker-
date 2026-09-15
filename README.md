@@ -8,7 +8,7 @@ Data stays on the device (IndexedDB, with a localStorage fallback). After the fi
 
 - Add, edit, and delete pantry items
 - Name, quantity + unit, category, expiry date, notes, optional barcode, and optional low-stock threshold
-- Scan a product barcode (camera, photo, or typed digits) to find an item or start a new one
+- Scan a product barcode (camera, photo, or typed digits) to find an item or start a new one with catalog details when available
 - Quick add on the list (name + Add) and one-tap recent items
 - Matching names or barcodes bump quantity instead of creating a duplicate
 - Kitchen starter categories plus custom labels
@@ -31,7 +31,7 @@ Scan is in the header (barcode icon), on Quick add, in the empty state, and on t
 1. Tap **Scan**. Pantry explains why it wants the camera, then asks Safari for permission.
 2. Point the rear camera at a UPC/EAN. Chrome and other browsers use `BarcodeDetector` when the phone has it; iPhone Safari falls back to ZXing in the page.
 3. If that item is already in the pantry, the count goes up by one and a toast confirms it.
-4. If it is new, the editor opens with the barcode filled. Pantry tries a public Open Food Facts lookup for a name. If nothing comes back, type the name.
+4. If it is new, the editor opens with the barcode filled and looks up **name, brand, and category** (plus a pack size note / unit when the catalog has them). If the code is unknown, keep the number and type the rest.
 
 Camera is optional. **Type the numbers** or **Use a photo** if the live view fails.
 
@@ -46,7 +46,23 @@ HTTPS is required (GitHub Pages already is). The first Scan tap shows a short �
   - Safari tab: **Settings → Safari → Camera** (or the site settings for `vinboy88.github.io`)
 - Then open Scan and tap **Try camera again**.
 
-Hold the barcode in the box with decent light. 1D grocery codes need to be reasonably large in the frame. Nothing from the camera is uploaded. A new item may request a product name from Open Food Facts; that is network-only and fails silently if you are offline.
+Hold the barcode in the box with decent light. 1D grocery codes need to be reasonably large in the frame. Nothing from the camera is uploaded.
+
+### Product lookup
+
+After a **new** barcode (not already in your pantry), Pantry asks public catalogs for details:
+
+1. [Open Food Facts](https://world.openfoodfacts.org/) product API (English + Australia preference, all product types)
+2. The same API’s barcode **search**, trying both the raw scan and normalized forms (UPC-A ↔ EAN-13 with a leading zero, GTIN-14, UPC-E expansion)
+3. If that misses, [Open Products Facts](https://world.openproductsfacts.org/), [Open Beauty Facts](https://world.openbeautyfacts.org/), and [Open Pet Food Facts](https://world.openpetfoodfacts.org/) for household / personal-care / pet items
+
+These APIs are **free and need no key**. They are volunteer databases: many Coles/Woolworths house brands and short-run AU lines are missing. Unknown products still need a typed name. Lookups need a network; if the catalog is slow or unreachable, the barcode stays filled and the editor says so.
+
+OFF asks clients not to burst more than about **10 requests/second**. Pantry looks up one scan at a time and stops when it gets a hit.
+
+Brand is not a separate pantry field in this version — when the catalog has a brand, it is prepended to the name (for example `Sanitarium Weet-Bix`) unless the name already includes it. Kitchen categories are mapped from OFF tags when they match (Dairy, Breakfast, and so on); otherwise category stays empty for you to pick.
+
+Scanning a barcode that is **already in the pantry** still only adds 1 to the count. Lookup does not overwrite a name, category, unit, or note you already typed.
 
 ## Low-stock alerts
 

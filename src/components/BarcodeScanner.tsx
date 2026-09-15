@@ -244,8 +244,9 @@ export function BarcodeScanner({ onDetect, onClose }: BarcodeScannerProps) {
                 a new one. The photo stays on this phone.
               </p>
               <p>
-                If it is a new item, Pantry may look up a name from the public Open Food Facts catalog.
-                You can always type the numbers instead.
+                If it is a new item, Pantry looks up name, brand, and category from the public Open
+                Food Facts catalog (and sister catalogs for household products). You can always type
+                the numbers instead.
               </p>
               <button type="button" className="primary-btn" onClick={() => requestCamera()}>
                 Start camera

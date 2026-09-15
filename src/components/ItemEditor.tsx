@@ -1,7 +1,12 @@
 import { useEffect, useId, useMemo, useRef, useState } from 'react'
-import { CATEGORIES, DEFAULT_LOW_STOCK_THRESHOLD, UNITS } from '../constants.ts'
+import { CATEGORIES, DEFAULT_LOW_STOCK_THRESHOLD, DEFAULT_UNIT, UNITS } from '../constants.ts'
 import { draftFromItem, emptyDraft } from '../hooks/usePantry.ts'
 import { findBarcodeMatch, normalizeBarcode } from '../lib/barcode.ts'
+import {
+  applyLookupToDraft,
+  lookupSourceLabel,
+  type ProductLookup,
+} from '../lib/productLookup.ts'
 import { findNameMatch, formatQuantity } from '../lib/query.ts'
 import { parseThreshold } from '../lib/stock.ts'
 import type { ItemDraft, PantryItem, RecentItem } from '../types.ts'
@@ -15,7 +20,8 @@ interface ItemEditorProps {
   lastCategory?: string
   initialDraft?: ItemDraft
   incomingBarcode?: string | null
-  lookupStatus?: 'idle' | 'loading' | 'found' | 'miss'
+  lookupStatus?: 'idle' | 'loading' | 'found' | 'miss' | 'error'
+  lookupHit?: ProductLookup | null
   onScanBarcode?: () => void
   onClose: () => void
   onSave: (draft: ItemDraft) => Promise<void>
@@ -32,6 +38,7 @@ export function ItemEditor({
   initialDraft,
   incomingBarcode,
   lookupStatus = 'idle',
+  lookupHit = null,
   onScanBarcode,
   onClose,
   onSave,
@@ -57,34 +64,62 @@ export function ItemEditor({
   )
   const [seenBarcode, setSeenBarcode] = useState(incomingBarcode ?? null)
   const [seenSeed, setSeenSeed] = useState(initialDraft)
+  const [seenLookup, setSeenLookup] = useState(lookupHit)
 
   if (incomingBarcode && incomingBarcode !== seenBarcode) {
     setSeenBarcode(incomingBarcode)
-    setDraft((current) => ({ ...current, barcode: incomingBarcode }))
+    setDraft((current) => {
+      const next = { ...current, barcode: incomingBarcode }
+      if (seenLookup && current.name.trim() === seenLookup.name) next.name = ''
+      if (seenLookup && current.category === seenLookup.category) next.category = ''
+      if (seenLookup && seenLookup.packageSize && current.notes.trim() === seenLookup.packageSize) {
+        next.notes = ''
+      }
+      if (seenLookup && seenLookup.unit && current.unit === seenLookup.unit) next.unit = DEFAULT_UNIT
+      // A blank new item still carries last-add category; drop it so lookup can fill
+      // or a miss does not look like a wrong match.
+      if (!current.name.trim() && lastCategory && current.category === lastCategory) {
+        next.category = ''
+      }
+      return next
+    })
+    if (!draft.name.trim() && lastCategory && draft.category === lastCategory) {
+      setCustomCategory('')
+    }
+    setSeenLookup(null)
     setError(null)
   }
 
   if (!item && initialDraft && initialDraft !== seenSeed) {
     setSeenSeed(initialDraft)
-    setDraft((current) => {
-      const next = { ...current }
-      let changed = false
-      if (!current.barcode && initialDraft.barcode) {
-        next.barcode = initialDraft.barcode
-        changed = true
-      }
-      if (!current.name.trim() && initialDraft.name.trim()) {
-        next.name = initialDraft.name
-        changed = true
-      }
-      if (!current.category && initialDraft.category) {
-        next.category = initialDraft.category
-        changed = true
-      }
-      return changed ? next : current
-    })
+    setDraft((current) =>
+      applyLookupToDraft(
+        {
+          ...current,
+          barcode: current.barcode || initialDraft.barcode,
+        },
+        {
+          name: initialDraft.name,
+          brand: '',
+          category: initialDraft.category,
+          unit: initialDraft.unit === DEFAULT_UNIT ? '' : initialDraft.unit,
+          packageSize: initialDraft.notes,
+          source: 'openfoodfacts',
+        },
+      ),
+    )
     if (initialDraft.category && !CATEGORIES.includes(initialDraft.category as (typeof CATEGORIES)[number])) {
       setCustomCategory((current) => current || initialDraft.category)
+    }
+  }
+
+  if (lookupHit !== seenLookup) {
+    setSeenLookup(lookupHit)
+    if (lookupHit) {
+      setDraft((current) => applyLookupToDraft(current, lookupHit))
+      if (lookupHit.category && !CATEGORIES.includes(lookupHit.category as (typeof CATEGORIES)[number])) {
+        setCustomCategory((current) => current || lookupHit.category)
+      }
     }
   }
 
@@ -176,6 +211,7 @@ export function ItemEditor({
 
         <form
           className="editor-form"
+          aria-busy={lookupStatus === 'loading'}
           onSubmit={(event) => {
             event.preventDefault()
             void submit()
@@ -187,7 +223,7 @@ export function ItemEditor({
               ref={nameRef}
               value={draft.name}
               onChange={(event) => setField('name', event.target.value)}
-              placeholder="e.g. Olive oil"
+              placeholder={lookupStatus === 'loading' ? 'Looking up this barcode…' : 'e.g. Olive oil'}
               autoComplete="off"
               autoCorrect="on"
               maxLength={80}
@@ -228,10 +264,25 @@ export function ItemEditor({
             </div>
           </label>
           {lookupStatus === 'loading' ? (
-            <p className="form-hint">Looking up this barcode…</p>
+            <p className="lookup-banner is-loading" role="status">
+              Looking up this barcode…
+            </p>
           ) : null}
-          {lookupStatus === 'miss' && !draft.name.trim() ? (
-            <p className="form-hint">No public name found — type one.</p>
+          {lookupStatus === 'found' && lookupHit ? (
+            <p className="lookup-banner is-found" role="status">
+              Filled from {lookupSourceLabel(lookupHit.source)}
+              {lookupHit.brand ? ` · ${lookupHit.brand}` : ''}. You can edit anything before saving.
+            </p>
+          ) : null}
+          {lookupStatus === 'miss' ? (
+            <p className="lookup-banner is-miss" role="status">
+              No catalog match for this barcode. The number is saved — type the name and the rest.
+            </p>
+          ) : null}
+          {lookupStatus === 'error' ? (
+            <p className="lookup-banner is-miss" role="status">
+              Could not reach the product catalog. The barcode is saved — type the rest.
+            </p>
           ) : null}
 
           {match ? (

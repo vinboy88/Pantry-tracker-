@@ -751,6 +751,30 @@ textarea:focus-visible {
   line-height: 1.4;
 }
 
+.lookup-banner {
+  margin: 0;
+  padding: 10px 12px;
+  border-radius: 12px;
+  font-size: 0.86rem;
+  font-weight: 600;
+  line-height: 1.35;
+}
+
+.lookup-banner.is-loading {
+  background: var(--sage-soft);
+  color: var(--sage-strong);
+}
+
+.lookup-banner.is-found {
+  background: var(--sage-soft);
+  color: var(--sage-strong);
+}
+
+.lookup-banner.is-miss {
+  background: var(--amber-soft);
+  color: var(--amber);
+}
+
 .quick-add {
   padding: 0 18px 10px;
   display: grid;
